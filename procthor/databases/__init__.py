@@ -247,7 +247,8 @@ DEFAULT_PROCTHOR_DATABASE = ProcTHORDatabase(
     FLOOR_ASSET_DICT=keydefaultdict(_get_default_floor_assets_from_key),
     PRIORITY_ASSET_TYPES={
         "Bedroom": ["Bed", "Dresser"],
-        "LivingRoom": ["Television", "DiningTable", "Sofa"],
+        # "LivingRoom": ["Television", "DiningTable", "Sofa"],
+        "LivingRoom": ["DiningTable"],
         "Kitchen": ["CounterTop", "Fridge"],
         "Bathroom": ["Toilet", "Sink"],
     },

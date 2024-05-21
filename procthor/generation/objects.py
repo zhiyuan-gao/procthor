@@ -1252,6 +1252,8 @@ def default_add_floor_objects(
                 priority_asset_types=priority_asset_types,
                 pt_db=pt_db,
             )
+            # print(asset)
+            # print('+++++++')
             # NOTE: no asset within the asset group could be placed inside of the
             # rectangle.
             if asset is None:

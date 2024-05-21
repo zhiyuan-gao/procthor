@@ -32,8 +32,10 @@ class SamplingVars:
         return SamplingVars(
             interior_boundary_scale=random.uniform(1.6, 2.2),
             max_floor_objects=random.choices(
+                # population=[1, 4, 5, 6, 7],
                 population=[1, 4, 5, 6, 7],
-                weights=[1 / 200, 1 / 100, 1 / 50, 1 / 10, 173 / 200],
+                # weights=[1 / 200, 1 / 100, 1 / 50, 1 / 10, 173 / 200],
+                weights=[200 / 200, 0 / 200, 0 / 200, 0 / 200, 0 / 200],
                 k=1,
             )[0],
         )

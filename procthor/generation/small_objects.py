@@ -122,10 +122,13 @@ def default_add_small_objects(
         room_type = room.room_type
         spawnable_objects = []
         for receptacle in receptacles_in_room:
+            # print(receptacle["objectType"])  #Chair DiningTable
             objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[
                 receptacle["objectType"]
             ]
+            # print(objects_in_receptacle)  #objs that could be placed on the 'receptacle'(Chair DiningTable)
             for object_type, data in objects_in_receptacle.items():
+                # check if the small objs should appear in this room type
                 room_weight = pt_db.PLACEMENT_ANNOTATIONS.loc[object_type][
                     f"in{room_type}s"
                 ]
@@ -152,6 +155,7 @@ def default_add_small_objects(
                 + house_bias
             )
         ]
+        # print(filtered_spawnable_groups)
         random.shuffle(filtered_spawnable_groups)
         objects_types_placed_in_room = set()
         for group in filtered_spawnable_groups:
