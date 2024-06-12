@@ -232,7 +232,7 @@
     "Blinds": 1,
     "Book": 1,
     "Boots": 1,
-    "Bottle": 2,
+    "Bottle": 0,
     "Bowl": 1,
     "Box": 2,
     "Bread": 0,
@@ -248,7 +248,7 @@
     "CoffeeTable": 1,
     "CounterTop": 0,
     "CreditCard": 2,
-    "Cup": 2,
+    "Cup": 0,
     "Desk": 1,
     "DeskLamp": 2,
     "Desktop": 0,
@@ -279,7 +279,7 @@
     "Lettuce": 0,
     "LightSwitch": 2,
     "Microwave": 0,
-    "Mug": 2,
+    "Mug": 0,
     "Newspaper": 2,
     "Ottoman": 1,
     "Painting": 0,
@@ -330,7 +330,7 @@
     "Watch": 2,
     "WateringCan": 2,
     "Window": null,
-    "WineBottle": 2
+    "WineBottle": 0
   },
   "inBedrooms": {
     "AlarmClock": 2,

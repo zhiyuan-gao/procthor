@@ -128,6 +128,7 @@ class HouseGenerator:
         """Sample a house specification compatible with AI2-THOR."""
         if self.controller is None:
             # NOTE: assumes images are never used by this Controller.
+            # self.controller = Controller(quality="Low")
             self.controller = Controller(quality="Low", **PROCTHOR_INITIALIZATION)
             if self.seed is not None:
                 self.controller.step(
