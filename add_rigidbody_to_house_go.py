@@ -35,15 +35,15 @@ def process_stage(stage):
 
 # load usd file
 # stage = Usd.Stage.Open('/home/zgao/Downloads/house10/exported_usd/train_1/house_train_1.usda')
-# stage = Usd.Stage.Open('/home/zgao/livRoom_usd/temp2/house_temp2.usda')
-stage = Usd.Stage.Open('/home/zgao/Downloads/temp/temp/house_temp.usda')
+stage = Usd.Stage.Open('/home/zgao/livRoom_usd/temp2/house_temp2.usda')
+# stage = Usd.Stage.Open('/home/zgao/Downloads/temp/temp/house_temp.usda')
 
 
 process_stage(stage)
 
 # save new usd file
 # new_file_path = '/home/zgao/Downloads/house10/exported_usd/train_1/house_train_1_with_mass_and_collision1.usda'
-new_file_path = '/home/zgao/Downloads/temp/temp/house_temp1.usda'
+new_file_path = '/home/zgao/livRoom_usd/temp2/house_temp2_rg.usda'
 
 stage.GetRootLayer().Export(new_file_path)
 
