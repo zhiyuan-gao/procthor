@@ -94,7 +94,9 @@ def default_add_small_objects(
     objects_per_room = defaultdict(list)
     for obj in objects:
         object_id = obj["objectId"]
-        room_id = int(object_id[: object_id.find("|")])
+        parts = object_id.split("|")
+        room_id = int(parts[1])
+        # room_id = int(object_id[: object_id.find("|")])
         objects_per_room[room_id].append(obj)
     objects_per_room = dict(objects_per_room)
     receptacles_per_room = {
@@ -122,7 +124,6 @@ def default_add_small_objects(
         room_type = room.room_type
         spawnable_objects = []
         for receptacle in receptacles_in_room:
-            # print(receptacle["objectType"])  #Chair DiningTable
             objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[
                 receptacle["objectType"]
             ]
@@ -155,7 +156,7 @@ def default_add_small_objects(
                 + house_bias
             )
         ]
-        # print(filtered_spawnable_groups)
+
         random.shuffle(filtered_spawnable_groups)
         objects_types_placed_in_room = set()
         for group in filtered_spawnable_groups:
@@ -204,8 +205,8 @@ def default_add_small_objects(
                 ]
 
                 chosen_asset_id = asset_candidates.sample()["assetId"].iloc[0]
-
-                generated_object_id = f"small|{room_id}|{num_placed_object_instances}"
+                obj_type = pt_db.ASSET_ID_DATABASE[chosen_asset_id]["objectType"]
+                generated_object_id = f"Small{obj_type}|{room_id}|{num_placed_object_instances}"
 
                 # NOTE: spawn below the floor so it doesn't tip over any other objects.
                 event = controller.step(
@@ -222,7 +223,7 @@ def default_add_small_objects(
                     action="SetObjectFilter", objectIds=[generated_object_id]
                 )
 
-                obj_type = pt_db.ASSET_ID_DATABASE[chosen_asset_id]["objectType"]
+                # obj_type = pt_db.ASSET_ID_DATABASE[chosen_asset_id]["objectType"]
                 openness = None
                 if (
                     obj_type in OPENNESS_RANDOMIZATIONS
@@ -241,6 +242,7 @@ def default_add_small_objects(
                 event = controller.step(
                     action="InitialRandomSpawn",
                     randomSeed=random.randint(0, 1_000_000_000),
+                    # placeStationary=False,
                     objectIds=[generated_object_id],
                     receptacleObjectIds=receptacle_object_ids,
                     forceVisible=False,

@@ -23,7 +23,7 @@ from procthor.utils.types import (
 from ..databases import ProcTHORDatabase
 from . import PartialHouse
 from .objects import AssetGroup, ProceduralRoom
-
+import re
 MAX_CENTER_Y_HEIGHT = 3
 """Clips the height of the wall.
 
@@ -818,7 +818,13 @@ def add_paintings(
 
             partial_house.objects.append(
                 Object(
-                    id=f"{room_id}|{len(rooms[room_id].assets) + painting_i + tvs_per_room[room_id]}",
+                    # id=f"{room_id}|{len(rooms[room_id].assets) + painting_i + tvs_per_room[room_id]}",
+                    id="{name}|{room_id}|{object_n}".format(
+                        name=re.sub(r'\d_', '', painting["assetId"].iloc[0]),
+                        room_id=room_id,
+                        object_n=len(rooms[room_id].assets) + painting_i + tvs_per_room[room_id]
+                    ),
+
                     assetId=painting["assetId"].iloc[0],
                     position=Vector3(
                         x=placement["centerX"],
@@ -987,7 +993,12 @@ def add_televisions(
 
         partial_house.objects.append(
             Object(
-                id=f"{room_id}|{len(rooms[room_id].assets)}",
+                # id=f"{room_id}|{len(rooms[room_id].assets)}",
+                id="{name}|{room_id}|{object_n}".format(
+                    name=re.sub(r'\d_', '', asset["assetId"].iloc[0]),
+                    room_id=room_id,
+                    object_n=len(rooms[room_id].assets)
+                ),
                 assetId=asset["assetId"].iloc[0],
                 position=Vector3(
                     x=placement["centerX"],

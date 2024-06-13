@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from . import PartialHouse
 
 from .asset_groups import AssetGroupGenerator
+import re
 
 P_ALLOW_HOUSE_PLANT_GROUP = 0.5
 """Quick hack to prevent oversampling the house plants on the floor of the room."""
@@ -130,8 +131,9 @@ class Asset:
 
     @property
     def asset_dict(self) -> Object:
+        name = re.sub(r'[\d_]', '', self.asset_id)
         return Object(
-            id=f"{self.room_id}|{self.object_n}",
+            id=f"{name}|{self.room_id}|{self.object_n}",
             position=self.position,
             rotation=Vector3(x=0, y=self.rotation, z=0),
             assetId=self.asset_id,
@@ -205,7 +207,13 @@ class AssetGroup:
 
         objects = {
             obj["instanceId"]: Object(
-                id=f"{self.room_id}|{self.object_n}|{i}",
+                # id=f"{self.room_id}|{self.object_n}|{i}",
+                id="{name}|{room_id}|{object_n}|{i}".format(
+                    name=re.sub(r'\d_', '', obj['assetId']),
+                    room_id=self.room_id,
+                    object_n=self.object_n,
+                    i=i
+                ),
                 position=obj["position"],
                 rotation=Vector3(x=0, y=obj["rotation"], z=0),
                 assetId=obj["assetId"],
