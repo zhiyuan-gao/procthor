@@ -21,8 +21,9 @@ def process_stage(stage):
     objects_prim = stage.GetPrimAtPath('/World/Objects')
 
 
-    small_prims = [prim for prim in objects_prim.GetChildren() if prim.GetName().startswith('Small')]
+    small_prims = [prim for prim in objects_prim.GetChildren() if prim.GetName().startswith('small')]
     for prim in small_prims:
+        print(prim.GetName())
         if prim.GetTypeName() == 'Xform':
             add_rigidbody_and_collision_to_xform(prim)
 
@@ -34,15 +35,15 @@ def process_stage(stage):
 
 
 # load usd file
-# stage = Usd.Stage.Open('/home/zgao/Downloads/house10/exported_usd/train_1/house_train_1.usda')
+
 stage = Usd.Stage.Open('/home/zgao/livRoom_usd/temp2/house_temp2.usda')
-# stage = Usd.Stage.Open('/home/zgao/Downloads/temp/temp/house_temp.usda')
+
 
 
 process_stage(stage)
 
 # save new usd file
-# new_file_path = '/home/zgao/Downloads/house10/exported_usd/train_1/house_train_1_with_mass_and_collision1.usda'
+
 new_file_path = '/home/zgao/livRoom_usd/temp2/house_temp2_rg.usda'
 
 stage.GetRootLayer().Export(new_file_path)
