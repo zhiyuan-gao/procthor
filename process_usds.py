@@ -1,6 +1,6 @@
 from pxr import Usd, UsdGeom, UsdPhysics
 import json
-
+import re
 
 def add_rigidbody_and_collision_to_xform(prim):
     
@@ -39,9 +39,31 @@ def process_children(children, parent_id):
             process_children(child['children'], child['id'])
 
 
+def rename_objects_xform_prims(prim):
+    xform_name_count = {}
+
+    for child in prim.GetChildren():
+        if child.GetTypeName() == "Xform":
+            current_name = child.GetName()
+            parts = current_name.split('_')
+
+            # 查找并保留第一个包含数字的部分及其之前的部分
+            new_base_name = '_'.join(part for part in parts if not re.search(r'\d', part))
+            for part in parts:
+                if re.search(r'\d', part):
+                    new_base_name += f'_{part}'
+                    break
+
+            if new_base_name not in xform_name_count:
+                xform_name_count[new_base_name] = 0
+            xform_name_count[new_base_name] += 1
+            new_name = f"{new_base_name}_{xform_name_count[new_base_name]}"
+
+            new_path = child.GetPath().GetParentPath().AppendChild(new_name)
+            stage.GetEditTarget().GetLayer().GetPrimAtPath(child.GetPath()).name = new_name
 
 
-def rename_mesh_prims(prim, mesh_count_dict):
+def rename_objects_mesh_prims(prim, mesh_count_dict):
     for child in prim.GetChildren():
         if child.GetTypeName() == "Mesh":
             current_name = child.GetName()
@@ -52,7 +74,7 @@ def rename_mesh_prims(prim, mesh_count_dict):
 
             if current_name.lower() == "mesh":
                 mesh_count_dict[parent_name] += 1
-                new_name = f"Mesh_{parent_name}{mesh_count_dict[parent_name]}"
+                new_name = f"Mesh_{parent_name}_{mesh_count_dict[parent_name]}"
             else:
                 # if ends with "Mesh", remove "Mesh" part
                 if current_name.lower().endswith("mesh"):
@@ -65,15 +87,54 @@ def rename_mesh_prims(prim, mesh_count_dict):
 
         elif child.GetTypeName() == "Xform":
             # recursively process child Xform
-            rename_mesh_prims(child, mesh_count_dict)
+            rename_objects_mesh_prims(child, mesh_count_dict)
 
 
+def rename_wall_mesh_prims(prim):
+    wall_mesh_count = {}
+    for child in prim.GetChildren():
+        if child.GetTypeName() == "Mesh":
+            current_name = child.GetName()
+            # keep the first two parts of the name
+            parts = current_name.split('_')
+            if len(parts) > 2:
+                new_base_name = '_'.join(parts[:2])
+                if new_base_name not in wall_mesh_count:
+                    wall_mesh_count[new_base_name] = 0
+                wall_mesh_count[new_base_name] += 1
+            
+                new_name = f"Mesh_{new_base_name}_{wall_mesh_count[new_base_name]}".replace("wall", "Wall")
+
+            else:
+                new_name = current_name
+
+
+            new_path = child.GetPath().GetParentPath().AppendChild(new_name)
+            stage.GetEditTarget().GetLayer().GetPrimAtPath(child.GetPath()).name = new_name
+
+
+def rename_ceiling_mesh_prims(prim):
+    for child in prim.GetChildren():
+        if child.GetTypeName() == "Mesh":
+            current_name = child.GetName()
+            new_name = f"Mesh_{current_name}"
+            new_path = child.GetPath().GetParentPath().AppendChild(new_name)
+            stage.GetEditTarget().GetLayer().GetPrimAtPath(child.GetPath()).name = new_name
+
+
+def rename_floor_mesh_prims(prim):
+    for child in prim.GetChildren():
+        if child.GetTypeName() == "Mesh":
+            current_name = child.GetName()
+            new_name = f"Mesh_Floor_{current_name}"
+            new_path = child.GetPath().GetParentPath().AppendChild(new_name)
+            stage.GetEditTarget().GetLayer().GetPrimAtPath(child.GetPath()).name = new_name
 
 
 # load usd file
 if __name__ == "__main__":
-# /home/zgao/house_usd_yup
-    index_list = [5,6,7,8]
+
+    index_list = [8]
     for i in index_list:
 
         # stage = Usd.Stage.Open('/home/zgao/house_usd_yup/train_8/house_train_8.usda')
@@ -94,9 +155,17 @@ if __name__ == "__main__":
             if 'children' in obj:
                 process_children(obj['children'], obj['id'])
 
-        # better name for mesh prims of objects 
+        # better name for mesh prims
         objects_prim = stage.GetPrimAtPath('/World/Objects')
-        rename_mesh_prims(objects_prim, {})
+        walls_prim = stage.GetPrimAtPath('/World/Structure/Walls')
+        ceiling_prim = stage.GetPrimAtPath('/World/Structure/Ceiling')
+        floor_prim = stage.GetPrimAtPath('/World/Structure/Floor')
+
+        rename_objects_xform_prims(objects_prim)
+        rename_objects_mesh_prims(objects_prim, {})
+        rename_wall_mesh_prims(walls_prim)
+        rename_ceiling_mesh_prims(ceiling_prim)
+        rename_floor_mesh_prims(floor_prim)
 
         # save usd file
         # stage.GetRootLayer().Save()
