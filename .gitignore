@@ -139,3 +139,5 @@ dmypy.json
 temp*.json
 
 train_8.json
+train_8/
+backup/

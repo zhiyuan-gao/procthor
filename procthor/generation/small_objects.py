@@ -206,7 +206,7 @@ def default_add_small_objects(
 
                 chosen_asset_id = asset_candidates.sample()["assetId"].iloc[0]
                 obj_type = pt_db.ASSET_ID_DATABASE[chosen_asset_id]["objectType"]
-                generated_object_id = f"Small{obj_type}|{room_id}|{num_placed_object_instances}"
+                generated_object_id = f"{obj_type}|{room_id}|{num_placed_object_instances}"
 
                 # NOTE: spawn below the floor so it doesn't tip over any other objects.
                 event = controller.step(
