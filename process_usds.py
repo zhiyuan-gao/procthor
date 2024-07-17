@@ -38,7 +38,6 @@ def process_children(children, parent_id):
         if 'children' in child:
             process_children(child['children'], child['id'])
 
-
 def rename_objects_xform_prims(prim):
     xform_name_count = {}
 
@@ -47,7 +46,6 @@ def rename_objects_xform_prims(prim):
             current_name = child.GetName()
             parts = current_name.split('_')
 
-            # 查找并保留第一个包含数字的部分及其之前的部分
             new_base_name = '_'.join(part for part in parts if not re.search(r'\d', part))
             for part in parts:
                 if re.search(r'\d', part):
@@ -57,11 +55,15 @@ def rename_objects_xform_prims(prim):
             if new_base_name not in xform_name_count:
                 xform_name_count[new_base_name] = 0
             xform_name_count[new_base_name] += 1
+
+            # check if the new name already exists
             new_name = f"{new_base_name}_{xform_name_count[new_base_name]}"
+            while stage.GetPrimAtPath(child.GetPath().GetParentPath().AppendChild(new_name)).IsValid():
+                xform_name_count[new_base_name] += 1
+                new_name = f"{new_base_name}_{xform_name_count[new_base_name]}"
 
             new_path = child.GetPath().GetParentPath().AppendChild(new_name)
             stage.GetEditTarget().GetLayer().GetPrimAtPath(child.GetPath()).name = new_name
-
 
 def rename_objects_mesh_prims(prim, mesh_count_dict):
     for child in prim.GetChildren():
@@ -134,7 +136,7 @@ def rename_floor_mesh_prims(prim):
 # load usd file
 if __name__ == "__main__":
 
-    index_list = [8]
+    index_list = [5,6,7,8]
     for i in index_list:
 
         # stage = Usd.Stage.Open('/home/zgao/house_usd_yup/train_8/house_train_8.usda')
