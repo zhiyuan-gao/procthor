@@ -141,3 +141,6 @@ temp*.json
 train_8.json
 train_8/
 backup/
+wall_test.usda
+train_5.json
+house_train_5.usda

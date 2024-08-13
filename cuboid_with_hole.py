@@ -17,7 +17,7 @@ def create_rectangular_prism_with_through_hole(stage, path, width, height, depth
         Gf.Vec3f(half_width, -half_height, -half_depth),   # 1: 底部右前
         Gf.Vec3f(half_width, half_height, -half_depth),    # 2: 底部右后
         Gf.Vec3f(-half_width, half_height, -half_depth),   # 3: 底部左后
-
+ 
         # 外部顶点 (顶面)
         Gf.Vec3f(-half_width, -half_height, half_depth),   # 4: 顶部左前
         Gf.Vec3f(half_width, -half_height, half_depth),    # 5: 顶部右前
@@ -88,11 +88,11 @@ def create_rectangular_prism_with_through_hole(stage, path, width, height, depth
 
 
 # 打开现有的USD文件
-stage = Usd.Stage.Open("/home/zgao/house_usd_yup/train_5/house_train_5_processed.usda")
+stage = Usd.Stage.Open("/home/zhiyuan/Downloads/house_better_name/train_5/house_train_5_processed.usda")
 # original_mesh_path = "/World/Structure/Walls/Mesh_Wall_7_3"
 
 create_rectangular_prism_with_through_hole(stage, "/World/RectangularPrismWithHole", width=4, height=4, depth=1, hole_width=2, hole_height=2)
 # # stage.GetRootLayer().Save()
-new_file_path = f'/home/zgao/house_usd_yup/train_5/wall_test.usda'
+new_file_path = f'/home/zhiyuan/Downloads/house_better_name/train_5/wall_test.usda'
 stage.GetRootLayer().Export(new_file_path)
 print("Rectangular prism with hole created in 'rectangular_prism_with_hole.usda'.")
