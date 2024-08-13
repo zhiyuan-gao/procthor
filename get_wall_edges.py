@@ -3,8 +3,8 @@ import numpy as np
 def sort_rectangle_vertices(points):
     """
     Sorts vertices into two rectangles, with specific ordering:
-    Index 0-3: Large rectangle (0: bottom-left, 1: top-left, 2: top-right, 3: bottom-right)
-    Index 4-7: Small rectangle (4: bottom-left, 5: top-left, 6: top-right, 7: bottom-right)
+    Large rectangle (0: bottom-left, 1: top-left, 4: top-right, 6: bottom-right)
+    Small rectangle (2: bottom-left, 3: top-left, 5: top-right, 7: bottom-right)
 
     :param points: List of 8 points (x, y) representing two rectangles.
     :return: np.array of sorted points.
@@ -32,14 +32,17 @@ def sort_rectangle_vertices(points):
     # Function to sort points in the order: bottom-left, top-left, top-right, bottom-right
     def sort_rectangle(pts):
         pts = sorted(pts, key=lambda p: (p[0], p[1]))  # First sort by x, then by y
-        return [pts[0], pts[2], pts[3], pts[1]]  # Rearrange to bottom-left, top-left, top-right, bottom-right
+        return [pts[0], pts[1], pts[3], pts[2]]  # Rearrange to bottom-left, top-left, top-right, bottom-right
 
     # Sort points within each rectangle
     large_rect_points = sort_rectangle(large_rect_points)
     small_rect_points = sort_rectangle(small_rect_points)
     
-    # Combine results into a single np.array
-    sorted_points = np.array(large_rect_points + small_rect_points)
+    # Combine results into a single np.array in the specified order
+    sorted_points = np.array([large_rect_points[0], large_rect_points[1], 
+                              small_rect_points[0], small_rect_points[1], 
+                              large_rect_points[2], small_rect_points[2], 
+                              large_rect_points[3], small_rect_points[3]])
     return sorted_points
 
 # Example usage
@@ -50,4 +53,6 @@ sorted_points = sort_rectangle_vertices(points)
 
 # Output the sorted np.array
 print("Sorted points array:")
-print(sorted_points)
+
+thcikness = 0.1
+print(sorted_points+ np.array([0,thcikness]))

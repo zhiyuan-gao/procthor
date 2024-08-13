@@ -3,7 +3,6 @@ from pxr import Usd, UsdGeom, UsdShade, Sdf, Gf
 # 打开现有的USD文件
 stage = Usd.Stage.Open("/home/zhiyuan/Downloads/house_better_name/train_5/house_train_5_processed.usda")
 
-# def create_thick_wall():
 # 获取现有的 /World Xform
 world_xform = UsdGeom.Xform.Get(stage, "/World")
 
