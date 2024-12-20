@@ -4,7 +4,7 @@ from typing import Dict, Literal, Optional, Sequence, Set
 import numpy as np
 from shapely.geometry import Polygon
 
-from procthor.constants import FLOOR_Y, OUTDOOR_ROOM_ID
+from procthor.constants import FLOOR_Y, OUTDOOR_ROOM_ID, THICKNESS
 from procthor.utils.types import (
     BoundaryGroups,
     ProceduralParameters,

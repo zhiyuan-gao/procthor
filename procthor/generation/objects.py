@@ -284,7 +284,12 @@ class OrthogonalPolygon:
             if p0[1] == p1[1]:
                 out[p0[1]].append(sorted([p0[0], p1[0]]))
         return out
-
+    
+    def cut_edges(self) -> None:
+        exter = copy.deepcopy(self.polygon)
+        inter = exter.buffer(-0.05,join_style=2)
+        return inter
+    
     def get_neighboring_rectangles(self) -> Set[Tuple[float, float, float, float]]:
         out = set()
         area = 0
@@ -532,6 +537,7 @@ class ProceduralRoom:
         self.open_polygon = OrthogonalPolygon(polygon=copy.deepcopy(polygon))
 
         self.door_polygons = door_polygons
+        self._cut_wall_thickness()
         self._cut_out_doors()
 
         self.room_type = room_type
@@ -542,6 +548,10 @@ class ProceduralRoom:
         self.pt_db = pt_db
         self.assets: List[Union[Asset, AssetGroup]] = []
         self.last_rectangles: Optional[Set[Tuple[float, float, float, float]]] = None
+
+    def _cut_wall_thickness(self) -> None:
+        inter = self.open_polygon.cut_edges()
+        self.open_polygon = OrthogonalPolygon(polygon=copy.deepcopy(inter))
 
     def _cut_out_doors(self) -> None:
         for door_polygon in self.door_polygons:

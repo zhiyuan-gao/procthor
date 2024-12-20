@@ -76,3 +76,6 @@ OUTDOOR_ROOM_ID = 1
 
 EMPTY_ROOM_ID = 0
 """The roomId of the entries in the matrix that are empty."""
+
+THICKNESS = 0.1
+"""The thickness of the walls in meters."""
