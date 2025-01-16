@@ -6,12 +6,12 @@ from procthor.generation.house import House, HouseStructure, NextSamplingStage, 
 # example of a custom sampler
 LIVING_ROOM_SPEC_SAMPLER = RoomSpecSampler(
     [      
-        # # here only sample living room
-        # RoomSpec(
-        #     room_spec_id="living-room",
-        #     sampling_weight=1,
-        #     spec=[LeafRoom(room_id=2, ratio=1, room_type="LivingRoom")],
-        # ),
+        # here only sample living room
+        RoomSpec(
+            room_spec_id="living-room",
+            sampling_weight=1,
+            spec=[LeafRoom(room_id=2, ratio=1, room_type="LivingRoom")],
+        ),
 
         # RoomSpec(
         #     room_spec_id="4-room",
@@ -38,20 +38,20 @@ LIVING_ROOM_SPEC_SAMPLER = RoomSpecSampler(
         #         ),
         #     ],
         # ),
-        RoomSpec(
-            room_spec_id="kitchen-living-bedroom-room",
-            sampling_weight=1,
-            spec=[
-                MetaRoom(
-                    ratio=2,
-                    children=[
-                        LeafRoom(room_id=6, ratio=3, room_type="Kitchen"),
-                        LeafRoom(room_id=7, ratio=2, room_type="LivingRoom"),
-                    ],
-                ),
-                LeafRoom(room_id=2, ratio=1, room_type="Bedroom"),
-            ],
-        ),
+        # RoomSpec(
+        #     room_spec_id="kitchen-living-bedroom-room",
+        #     sampling_weight=1,
+        #     spec=[
+        #         MetaRoom(
+        #             ratio=2,
+        #             children=[
+        #                 LeafRoom(room_id=6, ratio=3, room_type="Kitchen"),
+        #                 LeafRoom(room_id=7, ratio=2, room_type="LivingRoom"),
+        #             ],
+        #         ),
+        #         LeafRoom(room_id=2, ratio=1, room_type="Bedroom"),
+        #     ],
+        # ),
 
 
 
@@ -66,17 +66,32 @@ LIVING_ROOM_SPEC_SAMPLER = RoomSpecSampler(
 #     )
 #     house, _ = house_generator.sample()
 #     house.validate(house_generator.controller)
-#     house.to_json(f"/home/zgao/procthor/procthor/klbr/house_{i+8}.json")
+#     house.to_json(f"/home/zgao/procthor/procthor/houses/house_{i+8}.json")
 
 
 house_generator = HouseGenerator(
-    split="train", seed=0, room_spec_sampler=LIVING_ROOM_SPEC_SAMPLER)
+    split="train", seed=50, room_spec_sampler=LIVING_ROOM_SPEC_SAMPLER)
+
+# house, _ = house_generator.sample()
+house, sampling_stage_to_ph = house_generator.sample(return_partial_houses=True)
+
+# partial_house = sampling_stage_to_ph[NextSamplingStage.SMALL_OBJS]
+# print(partial_house.objects)
+# print('___________________________________________')
+# # partial_house.reset_room(2)
+# # print(partial_house.objects)
+# partial_house.reset_receptacle('Dining_Table_211|2|0|0')
+# print(partial_house.objects)
 
 
-house, _ = house_generator.sample()
-house.validate(house_generator.controller)
+# for stage in NextSamplingStage:
+#     if stage != NextSamplingStage.COMPLETE:
+#         partial_house = sampling_stage_to_ph[stage]
+#         house = partial_house.to_house()
+#         house.to_json(f"{stage.value}_{stage.name}.json")
 
-house.to_json("/home/zgao/procthor/procthor/klbr/house_0.json")
+
+# house.to_json("/home/zgao/procthor/procthor/house_0.json")
 
 
 # partial_house = PartialHouse.from_structure_and_room_spec(
@@ -90,13 +105,27 @@ house.to_json("/home/zgao/procthor/procthor/klbr/house_0.json")
 # house_generator = HouseGenerator(
 #     split="train", seed=50, room_spec_sampler=LIVING_ROOM_SPEC_SAMPLER
 # )
+
 # # house, sampling_stage_to_ph = house_generator.sample()
+# house, sampling_stage_to_ph = house_generator.sample(return_partial_houses=True)
+
+
+# # keys = list(sampling_stage_to_ph.keys())
+# # # print(keys)
+# for i in range(9):
+#     ph  = sampling_stage_to_ph[keys[i]]
+
+# example of different sample stages
+# house_generator = HouseGenerator(
+#     split="train", seed=50, room_spec_sampler=LIVING_ROOM_SPEC_SAMPLER
+# )
+# house, sampling_stage_to_ph = house_generator.sample()
 # house, sampling_stage_to_ph = house_generator.sample(return_partial_houses=True)
 
 # keys = list(sampling_stage_to_ph.keys())
 # # print(keys)
 
-# ph = sampling_stage_to_ph[keys[7]] 
+# ph = sampling_stage_to_ph[keys[2]] 
 # house.validate(house_generator.controller)
 
 # house.to_json("temp2.json")

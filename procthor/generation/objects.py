@@ -1214,18 +1214,29 @@ def default_add_floor_objects(
     max_floor_objects: int,
     p_allow_house_plant_group: float = P_ALLOW_HOUSE_PLANT_GROUP,
     p_allow_tv_group: float = P_ALLOW_TV_GROUP,
+    target_room_ids: Optional[List[int]] = None,
 ) -> None:
     """Add objects to each room.
 
     Args:
         floor_polygons: Maps each room's id to the shapely polygon of each room's
             floor.
-
+        target_room_ids: (Optional) A list of room IDs to target.
+        - If None (default), floor objects will be added to all suitable rooms.
+        - If provided, only the specified rooms will receive floor objects.
     """
     assert partial_house.objects is None or len(partial_house.objects) == 0
 
     partial_house.objects = []
-    for room in partial_house.rooms.values():
+
+    if not target_room_ids:
+        rooms_to_sample = partial_house.rooms.values()
+    else:
+        target_rooms = {room_id: partial_house.rooms[room_id] for room_id in target_room_ids if room_id in partial_house.rooms}
+        rooms_to_sample = target_rooms.values()
+
+    for room in rooms_to_sample:
+
         allow_house_plant_group = random.random() < p_allow_house_plant_group
         allow_tv_group = random.random() < p_allow_tv_group
 
@@ -1270,10 +1281,8 @@ def default_add_floor_objects(
                 priority_asset_types=priority_asset_types,
                 pt_db=pt_db,
             )
-            # print(asset)
-            # print('+++++++')
-            # NOTE: no asset within the asset group could be placed inside of the
-            # rectangle.
+
+            # NOTE: no asset within the asset group could be placed inside of the rectangle.
             if asset is None:
                 continue
 

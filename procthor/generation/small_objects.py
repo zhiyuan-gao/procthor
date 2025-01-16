@@ -8,8 +8,7 @@ import copy
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List
-
+from typing import Dict, List, Optional
 import numpy as np
 from ai2thor.controller import Controller
 
@@ -72,8 +71,23 @@ def default_add_small_objects(
     split: Split,
     rooms: Dict[int, ProceduralRoom],
     max_object_types_per_room: int = 10000,
+    target_receptacle_ids: Optional[List[str]] = None,
 ) -> None:
-    """Add small objects to the house."""
+    """
+    Adds small objects to the house by placing them on suitable receptacles 
+    (e.g., tables, chairs, shelves) based on placement rules and randomization.
+
+    Parameters:
+    - partial_house: A PartialHouse object representing the current state of the house.
+    - controller: A Controller object for interacting with the simulation.
+    - pt_db: A ProcTHORDatabase object containing object and placement data.
+    - split: Specifies the data split (e.g., train, test) for selecting objects.
+    - rooms: A dictionary of ProceduralRoom objects, keyed by room IDs.
+    - max_object_types_per_room: The maximum number of object types allowed per room.
+    - target_receptacle_ids: (Optional) A list of receptacle object IDs to target.
+      - If None (default), small objects will be added to all suitable receptacles.
+      - If provided, only the specified receptacles will receive small objects.
+    """
     controller.reset()
     controller.step(action="ResetObjectFilter")
     event = controller.step(
@@ -99,9 +113,14 @@ def default_add_small_objects(
         # room_id = int(object_id[: object_id.find("|")])
         objects_per_room[room_id].append(obj)
     objects_per_room = dict(objects_per_room)
+
+    # NOTE: Modify to filter target receptacles
     receptacles_per_room = {
         room_id: [
-            obj for obj in objects if obj["objectType"] in pt_db.OBJECTS_IN_RECEPTACLES
+            obj
+            for obj in objects
+            if obj["objectType"] in pt_db.OBJECTS_IN_RECEPTACLES
+            and (not target_receptacle_ids or obj["objectId"] in target_receptacle_ids)  # 新增过滤条件
         ]
         for room_id, objects in objects_per_room.items()
     }
@@ -127,7 +146,7 @@ def default_add_small_objects(
             objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[
                 receptacle["objectType"]
             ]
-            # print(objects_in_receptacle)  #objs that could be placed on the 'receptacle'(Chair DiningTable)
+            #objs that could be placed on the 'receptacle'(Chair DiningTable)
             for object_type, data in objects_in_receptacle.items():
                 # check if the small objs should appear in this room type
                 room_weight = pt_db.PLACEMENT_ANNOTATIONS.loc[object_type][

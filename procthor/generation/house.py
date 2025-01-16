@@ -60,7 +60,7 @@ class House:
 
     def _add_metadata(self) -> None:
         self.data["metadata"] = {
-            "agent": self.choose_agent_pose(),
+            # "agent": self.choose_agent_pose(),
             "roomSpecId": self.room_spec.room_spec_id,
             "schema": SCHEMA,
         }
@@ -162,6 +162,9 @@ class House:
         self.data["metadata"]["warnings"] = warnings
 
         return warnings
+    
+    def to_partial_house(self) -> "PartialHouse":
+        pass
 
     @staticmethod
     def top_down_video(
@@ -304,17 +307,16 @@ class PartialHouse:
             "metadata": "metadata",
         }
         for k in from_to_map:
-            val = getattr(self, k)
-            if val is not None:
-                house_dict[from_to_map[k]] = val
+            val = getattr(self, k, None)
+            house_dict[from_to_map[k]] = val
 
         return HouseDict(**house_dict)
 
     def to_house(self) -> House:
-        assert all(
-            getattr(self, k) is not None
-            for k in ["rooms", "doors", "windows", "objects", "walls"]
-        )
+        # assert all(
+        #     getattr(self, k) is not None
+        #     for k in ["rooms", "doors", "windows", "objects", "walls"]
+        # )
 
         return House(
             data=self.to_house_dict(),
@@ -333,5 +335,42 @@ class PartialHouse:
             self.next_sampling_stage.COMPLETE,
         )
 
-    def reset(self):
-        raise NotImplementedError
+    # def reset(self):
+    #     raise NotImplementedError
+    
+
+    def reset_room(self, room_id: str) -> List[Object]:
+        """
+        Recursively filter the list of objects, removing objects where the number after the | in id is equal to room_id.
+
+        - param room_id: The number to be removed (as a string).
+        - return: The filtered list of objects.
+        """
+        def _filter(objects: List[Object]) -> List[Object]:
+            filtered = []
+            for obj in objects:
+                # Check if the number after | in id matches room_id
+                if obj["id"].split('|')[1] != str(room_id):
+                    # If children exists, recursively process it
+                    if "children" in obj:
+                        obj["children"] = _filter(obj["children"])
+                    filtered.append(obj)
+            return filtered
+
+       # Update and return the filtered object list
+        self.objects = _filter(self.objects)
+        return self.objects
+    
+    def reset_receptacle(self, receptacle_id:str) -> List[Object]:
+
+        def remove_children_recursively(obj):
+            """
+            Recursively delete children at all levels in a dictionary and return a new dictionary.
+
+            - param obj: The input dictionary.
+            - return: The new dictionary after deleting children.
+            """
+            return {k: remove_children_recursively(v) if isinstance(v, dict) else v
+                    for k, v in obj.items() if k != "children"}
+        
+        self.objects = [remove_children_recursively(obj) if obj["id"] == receptacle_id else obj for obj in self.objects]

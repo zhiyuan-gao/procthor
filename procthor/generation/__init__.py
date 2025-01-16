@@ -2,7 +2,7 @@ import copy
 import logging
 import random
 from contextlib import contextmanager
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union, List
 
 import numpy as np
 from ai2thor.controller import Controller
@@ -177,8 +177,9 @@ class HouseGenerator:
                 room_spec=room_spec,
             )
             partial_house.next_sampling_stage = next_sampling_stage
-        else:
-            assert partial_house.next_sampling_stage > NextSamplingStage.STRUCTURE
+
+        # else:
+        #     assert partial_house.next_sampling_stage > NextSamplingStage.STRUCTURE
 
         if return_partial_houses:
             sampling_stage_to_ph[partial_house.next_sampling_stage] = copy.deepcopy(
@@ -305,3 +306,100 @@ class HouseGenerator:
         sampling_stage_to_ph[partial_house.next_sampling_stage] = partial_house
 
         return partial_house.to_house(), sampling_stage_to_ph
+    
+    def resample_room_objects(self, 
+        target_room_ids: Optional[List[str]] = [2],
+        partial_house: Optional[PartialHouse] = None,
+        sampling_vars: Optional[SamplingVars] = None,
+    ) -> House:
+        
+        for room_id in target_room_ids:
+            partial_house.reset_room(room_id)
+        
+        gfs = self.generation_functions
+        # resample floor objs
+        gfs.add_floor_objects(
+            partial_house=partial_house,
+            controller=self.controller,
+            pt_db=self.pt_db,
+            split=self.split,
+            max_floor_objects=sampling_vars.max_floor_objects,
+            target_room_ids=target_room_ids
+        )
+        floor_objects = [*partial_house.objects]
+        gfs.randomize_object_colors(objects=floor_objects, pt_db=self.pt_db)
+        gfs.randomize_object_states(objects=floor_objects, pt_db=self.pt_db)
+
+        target_rooms = {room_id: partial_house.rooms[room_id] for room_id in target_room_ids if room_id in partial_house.rooms}
+
+        # resample wall objs
+        gfs.add_wall_objects(
+            partial_house=partial_house,
+            controller=self.controller,
+            pt_db=self.pt_db,
+            split=self.split,
+            rooms=target_rooms,
+            boundary_groups=partial_house.house_structure.boundary_groups,
+            room_type_map=partial_house.room_spec.room_type_map,
+            ceiling_height=partial_house.house_structure.ceiling_height,
+        )
+        wall_objects = [*partial_house.objects[len(floor_objects) :]]
+        gfs.randomize_object_colors(objects=wall_objects, pt_db=self.pt_db)
+        gfs.randomize_object_states(objects=wall_objects, pt_db=self.pt_db)
+        
+
+        # resample small objs
+        no_floor_and_wall_objs= len(partial_house.objects)
+        gfs.add_small_objects(
+            partial_house=partial_house,
+            controller=self.controller,
+            pt_db=self.pt_db,
+            split=self.split,
+            rooms=target_rooms,
+        )
+        small_objects = [
+            # *partial_house.objects[len(floor_objects) + len(wall_objects) :]
+            *partial_house.objects[no_floor_and_wall_objs :]
+        ]
+        gfs.randomize_object_colors(objects=small_objects, pt_db=self.pt_db)
+        gfs.randomize_object_states(objects=small_objects, pt_db=self.pt_db)
+
+        return partial_house.to_house()
+
+
+    def resample_small_objects_of_receptacle(self, 
+        target_receptacle_ids: Optional[List[str]] = None,
+        partial_house: Optional[PartialHouse] = None,
+    ) -> House:
+
+        gfs = self.generation_functions
+        
+        for receptacle_id in target_receptacle_ids:
+            partial_house.reset_receptacle(receptacle_id)
+
+        no_floor_and_wall_objs= len(partial_house.objects)
+
+        gfs.add_small_objects(
+            partial_house=partial_house,
+            controller=self.controller,
+            pt_db=self.pt_db,
+            split=self.split,
+            rooms=partial_house.rooms,
+            target_receptacle_ids=target_receptacle_ids
+        )
+        small_objects = [
+            # *partial_house.objects[len(floor_objects) + len(wall_objects) :]
+            *partial_house.objects[no_floor_and_wall_objs :]
+        ]
+        gfs.randomize_object_colors(objects=small_objects, pt_db=self.pt_db)
+        gfs.randomize_object_states(objects=small_objects, pt_db=self.pt_db)
+
+        return partial_house.to_house()
+    
+    def randomize_room_object_location(self, 
+        target_room_ids: Optional[List[str]] = [2],
+        partial_house: Optional[PartialHouse] = None,
+        sampling_vars: Optional[SamplingVars] = None,
+    ) -> House:
+        
+        pass
