@@ -2,7 +2,7 @@ import copy
 import logging
 import random
 from contextlib import contextmanager
-from typing import Dict, Optional, Tuple, Union, List
+from typing import Dict, Optional, Tuple, Union, List, Any
 
 import numpy as np
 from ai2thor.controller import Controller
@@ -93,6 +93,7 @@ class HouseGenerator:
     generation_functions: GenerationFunctions = Factory(
         _create_default_generation_functions
     )
+    user_defined_params: Optional[Dict[str, Any]] = None 
 
     @split.validator
     def _valid_split(self, attribute: Attribute, value: Split) -> None:
@@ -257,12 +258,14 @@ class HouseGenerator:
 
         if partial_house.next_sampling_stage <= NextSamplingStage.FLOOR_OBJS:
             with advance_and_record_partial(partial_house):
+                user_floor_objs = self.user_defined_params.get('floor_wall_objects', None).get('floor_objects', None) if self.user_defined_params else None
                 gfs.add_floor_objects(
                     partial_house=partial_house,
                     controller=self.controller,
                     pt_db=self.pt_db,
                     split=self.split,
                     max_floor_objects=sampling_vars.max_floor_objects,
+                    user_floor_objs=user_floor_objs
                 )
                 floor_objects = [*partial_house.objects]
                 gfs.randomize_object_colors(objects=floor_objects, pt_db=self.pt_db)
@@ -270,6 +273,7 @@ class HouseGenerator:
 
         if partial_house.next_sampling_stage < NextSamplingStage.WALL_OBJS:
             with advance_and_record_partial(partial_house):
+                user_wall_objs = self.user_defined_params.get('floor_wall_objects', None).get('wall_objects', None) if self.user_defined_params else None
                 gfs.add_wall_objects(
                     partial_house=partial_house,
                     controller=self.controller,
@@ -279,6 +283,7 @@ class HouseGenerator:
                     boundary_groups=partial_house.house_structure.boundary_groups,
                     room_type_map=partial_house.room_spec.room_type_map,
                     ceiling_height=partial_house.house_structure.ceiling_height,
+                    user_wall_objs=user_wall_objs
                 )
                 wall_objects = [*partial_house.objects[len(floor_objects) :]]
                 gfs.randomize_object_colors(objects=wall_objects, pt_db=self.pt_db)
@@ -287,12 +292,14 @@ class HouseGenerator:
         if partial_house.next_sampling_stage < NextSamplingStage.SMALL_OBJS:
             no_floor_and_wall_objs= len(partial_house.objects)
             with advance_and_record_partial(partial_house):
+                user_small_objs = self.user_defined_params.get('small_objects', None) if self.user_defined_params else None
                 gfs.add_small_objects(
                     partial_house=partial_house,
                     controller=self.controller,
                     pt_db=self.pt_db,
                     split=self.split,
                     rooms=partial_house.rooms,
+                    user_small_objs=user_small_objs
                 )
                 small_objects = [
                     # *partial_house.objects[len(floor_objects) + len(wall_objects) :]

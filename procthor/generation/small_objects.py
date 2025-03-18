@@ -72,6 +72,7 @@ def default_add_small_objects(
     rooms: Dict[int, ProceduralRoom],
     max_object_types_per_room: int = 10000,
     target_receptacle_ids: Optional[List[str]] = None,
+    user_small_objs: Optional[dict] = None
 ) -> None:
     """
     Adds small objects to the house by placing them on suitable receptacles 
@@ -87,6 +88,7 @@ def default_add_small_objects(
     - target_receptacle_ids: (Optional) A list of receptacle object IDs to target.
       - If None (default), small objects will be added to all suitable receptacles.
       - If provided, only the specified receptacles will receive small objects.
+    - user_small_objs: (Optional) A dictionary of user-specified small objects to add.
     """
     controller.reset()
     controller.step(action="ResetObjectFilter")
@@ -134,6 +136,18 @@ def default_add_small_objects(
     house_bias = randomize_bias()
     logging.debug(f"Small object bias: {house_bias}")
 
+    def transform_small_objects(small_objects):
+        transformed_data = defaultdict(lambda: defaultdict(list))
+        
+        for obj in small_objects:
+            receptacle_type = obj["receptacle_type"]
+            receptacle_name = obj["placed_on"]
+            small_object = obj["small_object"]
+            
+            transformed_data[receptacle_type][receptacle_name].append(small_object)
+        
+        return dict(transformed_data)
+
     # NOTE: Place the objects
     num_placed_object_instances = 0
     for room_id, room in rooms.items():
@@ -142,16 +156,146 @@ def default_add_small_objects(
         receptacles_in_room = receptacles_per_room[room_id]
         room_type = room.room_type
         spawnable_objects = []
+
+        if user_small_objs is not None:
+            user_small_objs_per_room = [obj for obj in user_small_objs if obj.get("room") == str(room_id)]
+        else:
+            user_small_objs_per_room = []
+
+        user_receptacle_per_room = transform_small_objects(user_small_objs_per_room)  # 转换用户提供的数据
+        user_receptacle_types = list(user_receptacle_per_room.keys())
+        remaining_receptacles = []  # 存放未被用户指定的 receptacle
+
         for receptacle in receptacles_in_room:
-            objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[
-                receptacle["objectType"]
-            ]
-            #objs that could be placed on the 'receptacle'(Chair DiningTable)
+
+            receptacle_type = receptacle["objectType"]
+
+            if receptacle_type in user_receptacle_types:
+                    # 只处理仍有物体需要放置的 receptacle 类型
+                if receptacle_type in user_receptacle_per_room and user_receptacle_per_room[receptacle_type]:
+
+                    chosen_receptacle = random.choice(list(user_receptacle_per_room[receptacle_type].keys()))
+                    small_objects_to_place = user_receptacle_per_room[receptacle_type].pop(chosen_receptacle)
+
+                    for small_object in small_objects_to_place:
+                        asset_candidates = pt_db.ASSETS_DF[
+                            (pt_db.ASSETS_DF["objectType"] == small_object)
+                            & pt_db.ASSETS_DF["split"].isin([split, None])
+                        ]
+
+                        chosen_asset_id = asset_candidates.sample()["assetId"].iloc[0]
+                        obj_type = pt_db.ASSET_ID_DATABASE[chosen_asset_id]["objectType"]
+                        generated_object_id = f"{obj_type}|{room_id}|{num_placed_object_instances}"
+
+                        print('generated_object_id:', generated_object_id)
+
+                        event = controller.step(action="ResetObjectFilter")
+                        
+                        event = controller.step(
+                            action="SpawnAsset",
+                            assetId=chosen_asset_id,
+                            generatedId=generated_object_id,
+                            position=Vector3(x=0, y=FLOOR_Y - 20, z=0),
+                            renderImage=False,
+                        )
+                        
+                        receptacle_object_ids = [receptacle["objectId"]]
+
+                        assert event, f"SpawnAsset failed for {small_object}!"
+
+                        openness = None
+                        if (
+                            obj_type in OPENNESS_RANDOMIZATIONS
+                            and "CanOpen"
+                            in pt_db.ASSET_ID_DATABASE[chosen_asset_id]["secondaryProperties"]
+                        ):
+                            openness = sample_openness(obj_type)
+                            controller.step(
+                                action="OpenObject",
+                                objectId=generated_object_id,
+                                openness=openness,
+                                forceAction=True,
+                                raise_for_failure=True,
+                                renderImage=False,
+                            )
+                        event = controller.step(
+                            action="InitialRandomSpawn",
+                            randomSeed=random.randint(0, 1_000_000_000),
+                            # placeStationary=False,
+                            objectIds=[generated_object_id],
+                            receptacleObjectIds=receptacle_object_ids,
+                            forceVisible=False,
+                            allowFloor=False,
+                            renderImage=False,
+                            allowMoveable=True,
+                        )
+
+                        obj = next(
+                            obj
+                            for obj in event.metadata["objects"]
+                            if obj["objectId"] == generated_object_id
+                        )
+
+                        center_position = obj["axisAlignedBoundingBox"]["center"].copy()
+
+                        # NOTE: Sometimes InitialRandomSpawn succeeds when it should
+                        # be failing. In these cases, the object will appear below
+                        # the floor.
+
+                        if event:
+                            print('spawn object success')
+                        if event and center_position["y"] > FLOOR_Y:
+                            if obj["breakable"]:
+                                # NOTE: often avoids objects shattering upon initialization.
+                                center_position["y"] += 0.05
+
+                            states = {}
+                            if openness is not None:
+                                states["openness"] = openness
+
+                            house_data_receptacle = receptacle["objectId"]
+
+                            if "children" not in objects_in_house[house_data_receptacle]:
+                                objects_in_house[house_data_receptacle]["children"] = []
+
+                            objects_in_house[house_data_receptacle]["children"].append(
+                                Object(
+                                    id=generated_object_id,
+                                    assetId=chosen_asset_id,
+                                    rotation=obj["rotation"],
+                                    position=center_position,
+                                    kinematic=bool(
+                                        pt_db.PLACEMENT_ANNOTATIONS.loc[
+                                            small_object
+                                        ]["isKinematic"]
+                                    ),
+                                    **states,
+                                )
+                            )
+                            num_placed_object_instances += 1
+
+
+                            # do we need this? if set here, maybe we can't place more objects of the same type in the same room
+                            # it will destroy the randomness of the remaining objects
+                            # objects_types_placed_in_room.add(obj_type)
+                            # object_types_in_rooms[room_id].add(small_object)
+                        else:
+                            print('disable object')
+                            controller.step(
+                                action="DisableObject",
+                                objectId=generated_object_id,
+                                renderImage=False,
+                            )
+
+            else:
+                remaining_receptacles.append(receptacle)
+
+        # process the remaining random receptacle items in the room
+        for receptacle in remaining_receptacles:
+
+            objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[receptacle["objectType"]]
             for object_type, data in objects_in_receptacle.items():
-                # check if the small objs should appear in this room type
-                room_weight = pt_db.PLACEMENT_ANNOTATIONS.loc[object_type][
-                    f"in{room_type}s"
-                ]
+                room_weight = pt_db.PLACEMENT_ANNOTATIONS.loc[object_type][f"in{room_type}s"]
                 if room_weight == 0:
                     continue
                 spawnable_objects.append(

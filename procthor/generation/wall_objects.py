@@ -331,6 +331,7 @@ def add_windows(
     wall_map: Dict[str, Wall],
     ceiling_height: float,
     pt_db: ProcTHORDatabase,
+    user_wall_objs: Optional[List[dict]] = None,
 ) -> None:
     """Add windows to the house."""
     window_boundary_strings = get_boundary_strings(
@@ -366,10 +367,15 @@ def add_windows(
 
     # NOTE: Sample windows to place
     partial_house.windows = []
-    max_windows_in_rooms = random.choices(k=len(rooms_lines_df_map), **WINDOWS_PER_ROOM)
-    for max_windows_in_room, (room_id, room_lines_df) in zip(
-        max_windows_in_rooms, rooms_lines_df_map.items()
-    ):
+
+    for room_id, room_lines_df in rooms_lines_df_map.items():
+        # 如果 user_wall_objs 存在，则筛选出当前房间的条目；否则得到空列表
+        user_wall_objs_per_room = [w for w in user_wall_objs if w.get("room") == str(room_id)] if user_wall_objs is not None else []
+        # 如果有用户输入的条目，则计算窗口数量，否则使用随机采样
+        max_windows_in_room = (sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Window")
+                            if user_wall_objs_per_room
+                            else random.choices([0, 1, 2], weights=[0.125, 0.375, 0.5], k=1)[0])
+
         room_lines_df = filter_room_lines_df(
             room_lines_df=room_lines_df, min_asset_size=min_window_size
         )
@@ -759,28 +765,37 @@ def add_paintings(
     rooms_lines_df_map,
     wall_object_heights_per_room,
     pt_db: ProcTHORDatabase,
+    user_wall_objs: Optional[List[dict]] = None,
 ) -> None:
     """Add paintings to the house."""
     paintings_df = get_assets_df(split=split, asset_type="Painting", pt_db=pt_db)
-
-    max_paintings_in_rooms = random.choices(
-        k=len(rooms_lines_df_map), **PAINTINGS_PER_ROOM
+    
+    # 原随机逻辑生成各房间画作数量
+    random_max_paintings = random.choices(
+        population=PAINTINGS_PER_ROOM["population"],
+        weights=PAINTINGS_PER_ROOM["weights"],
+        k=len(rooms_lines_df_map)
     )
-
+    
     min_painting_size = paintings_df["xSize"].min()
-    for max_paintings_in_room, (room_id, room_lines_df) in zip(
-        max_paintings_in_rooms, rooms_lines_df_map.items()
-    ):
+
+    for idx, (room_id, room_lines_df) in enumerate(rooms_lines_df_map.items()):
+        # 如果 user_wall_objs 存在，则筛选出当前房间的条目；否则得到空列表
+        user_wall_objs_per_room = [w for w in user_wall_objs if w.get("room") == str(room_id)] if user_wall_objs is not None else []
+        # 如果有用户输入的条目，则计算窗口数量，否则使用随机采样
+        max_paintings_in_room = (sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Painting")
+                            if user_wall_objs_per_room
+                            else random_max_paintings[idx])
+
         for painting_i in range(max_paintings_in_room):
             room_lines_df = filter_room_lines_df(
                 room_lines_df=room_lines_df, min_asset_size=min_painting_size
             )
-
-            # NOTE: No more space on the walls
+            # 如果墙面区域或候选画作不足，则退出
             if not len(room_lines_df) or not len(paintings_df):
                 break
 
-            # NOTE: sample the line string
+            # 随机采样一条墙面区域
             room_line_i = random.choices(
                 population=list(room_lines_df.index),
                 weights=list(room_lines_df["length"]),
@@ -788,10 +803,10 @@ def add_paintings(
             )[0]
             room_line = room_lines_df.loc[room_line_i]
 
-            # NOTE: sample the painting
-            painting_candidates = paintings_df[
-                paintings_df["xSize"] < room_line["length"]
-            ]
+            # 从候选画作中采样：要求画作宽度小于该墙面区域的长度
+            painting_candidates = paintings_df[paintings_df["xSize"] < room_line["length"]]
+            if len(painting_candidates) == 0:
+                break
             painting = painting_candidates.sample()
 
             # NOTE: Choose the position of the painting
@@ -876,7 +891,8 @@ def add_paintings(
             # NOTE: Don't allow the same painting to be spawned in.
             if not ALLOW_DUPLICATE_PAINTINGS_IN_HOUSE:
                 paintings_df = paintings_df.drop(painting.index)
-                min_painting_size = paintings_df["xSize"].min()
+                if len(paintings_df) > 0:
+                    min_painting_size = paintings_df["xSize"].min()
 
 
 #%% add Televisions to the wall
@@ -896,7 +912,6 @@ ROOMS_WITH_WALL_TELEVISIONS = {
 }
 """Probability of having a wall television in a room without a television."""
 
-
 def add_televisions(
     partial_house: PartialHouse,
     rooms: Dict[int, ProceduralRoom],
@@ -906,6 +921,7 @@ def add_televisions(
     wall_map: Dict[str, Wall],
     ceiling_height: float,
     pt_db: ProcTHORDatabase,
+    user_wall_objs: Optional[List[dict]] = None,
 ):
     """Add paintings to the house."""
     rooms_lines_df_map, wall_object_heights_per_room = setup_wall_placement(
@@ -924,127 +940,120 @@ def add_televisions(
     tvs_per_room = defaultdict(int)
 
     min_asset_size = assets_df["xSize"].min()
+
     for room_id, room_lines_df in rooms_lines_df_map.items():
-        if (
-            room_type_map[room_id] not in ROOMS_WITH_WALL_TELEVISIONS
-            or random.random()
-            > ROOMS_WITH_WALL_TELEVISIONS[room_type_map[room_id]]["p"]
-        ):
+        user_wall_objs_per_room = [w for w in user_wall_objs if w.get("room") == str(room_id)] if user_wall_objs is not None else []
+        desired_tv_count = (
+            sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Television")
+            if user_wall_objs_per_room
+            else (1 if room_type_map[room_id] in ROOMS_WITH_WALL_TELEVISIONS 
+                and random.random() <= ROOMS_WITH_WALL_TELEVISIONS[room_type_map[room_id]]["p"]
+                else None)
+        )
+        if desired_tv_count is None:
             continue
 
-        # NOTE: skip any rooms that already have a television
-        room_has_television = False
+        # 检查房间内已放置电视数量
+        current_tv_count = 0
         for asset in rooms[room_id].assets:
             if isinstance(asset, AssetGroup):
                 for obj in asset.objects:
-                    if (
-                        pt_db.ASSET_ID_DATABASE[obj["assetId"]]["objectType"]
-                        == "Television"
-                    ):
-                        room_has_television = True
+                    if pt_db.ASSET_ID_DATABASE[obj["assetId"]]["objectType"] == "Television":
+                        current_tv_count += 1
             elif pt_db.ASSET_ID_DATABASE[asset.asset_id]["objectType"] == "Television":
-                room_has_television = True
-            if room_has_television:
-                break
-        if room_has_television:
+                current_tv_count += 1
+        
+        # 若已放置电视数量达到要求，则跳过该房间
+        if current_tv_count >= desired_tv_count:
             continue
-
-        room_lines_df = filter_room_lines_df(
-            room_lines_df=room_lines_df, min_asset_size=min_asset_size
-        )
-
-        # NOTE: No more space on the walls
-        if not len(room_lines_df) or not len(assets_df):
-            break
-
-        # NOTE: sample the line string
-        room_line_i = random.choices(
-            population=list(room_lines_df.index),
-            weights=list(room_lines_df["length"]),
-            k=1,
-        )[0]
-        room_line = room_lines_df.loc[room_line_i]
-
-        # NOTE: sample the asset
-        asset_candidates = assets_df[assets_df["xSize"] < room_line["length"]]
-        asset = asset_candidates.sample()
-
-        # NOTE: Choose the position of the asset
-        start_position = random.random() * (
-            room_line["length"] - asset["xSize"].iloc[0]
-        )
-
-        wall_poly = wall_map[room_line["wallId"]]["polygon"]
-
-        placement = get_wall_placement_info(
-            wall_poly=wall_poly,
-            room_line=room_line,
-            asset=asset,
-            start_position=start_position,
-        )
-
-        min_y, max_y = sample_asset_y_position(
-            asset_height=asset["ySize"].iloc[0],
-            wall_object_heights=wall_object_heights_per_room[room_id],
-            asset_top_down_poly=placement["poly"],
-            ceiling_height=ceiling_height,
-        )
-        center_y_position = (min_y + max_y) / 2
-
-        partial_house.objects.append(
-            Object(
-                # id=f"{room_id}|{len(rooms[room_id].assets)}",
-                id="{name}|{room_id}|{object_n}".format(
-                    name=re.sub(r'\d_', '', asset["assetId"].iloc[0]),
-                    room_id=room_id,
-                    object_n=len(rooms[room_id].assets)
-                ),
-                assetId=asset["assetId"].iloc[0],
-                position=Vector3(
-                    x=placement["centerX"],
-                    y=center_y_position,
-                    z=placement["centerZ"],
-                ),
-                rotation=Vector3(x=0, y=placement["rotation"], z=0),
-                kinematic=True,
+        
+        # 循环放置电视，直到达到 desired_tv_count 或无可用空间
+        while current_tv_count < desired_tv_count:
+            room_lines_df = filter_room_lines_df(
+                room_lines_df=room_lines_df, min_asset_size=min_asset_size
             )
-        )
+            if not len(room_lines_df) or not len(assets_df):
+                break
 
-        # NOTE: subtract asset from valid locations in room
-        rooms_lines_df_map[room_id] = rooms_lines_df_map[room_id].drop(room_line_i)
+            room_line_i = random.choices(
+                population=list(room_lines_df.index),
+                weights=list(room_lines_df["length"]),
+                k=1,
+            )[0]
+            room_line = room_lines_df.loc[room_line_i]
 
-        line_string = room_line["lineString"]
-        line_string -= placement["poly"]
+            asset_candidates = assets_df[assets_df["xSize"] < room_line["length"]]
+            if len(asset_candidates) == 0:
+                break
+            asset = asset_candidates.sample()
 
-        if isinstance(line_string, MultiLineString):
-            line_strings_to_add = [ls for ls in line_string.geoms]
-        elif line_string.length:
-            line_strings_to_add = [line_string]
-        else:
-            line_strings_to_add = []
+            start_position = random.random() * (room_line["length"] - asset["xSize"].iloc[0])
+            wall_poly = wall_map[room_line["wallId"]]["polygon"]
+            placement = get_wall_placement_info(
+                wall_poly=wall_poly,
+                room_line=room_line,
+                asset=asset,
+                start_position=start_position,
+            )
+            min_y, max_y = sample_asset_y_position(
+                asset_height=asset["ySize"].iloc[0],
+                wall_object_heights=wall_object_heights_per_room[room_id],
+                asset_top_down_poly=placement["poly"],
+                ceiling_height=ceiling_height,
+            )
+            center_y_position = (min_y + max_y) / 2
 
-        if line_strings_to_add:
-            lines_to_append = []
-            for line_string in line_strings_to_add:
-                start, end = line_string.boundary.geoms
-                x1, z1 = start.x, start.y
-                x2, z2 = end.x, end.y
-                lines_to_append.append(
-                    {
-                        "length": line_string.length,
+            partial_house.objects.append(
+                Object(
+                    id="{name}|{room_id}|{object_n}".format(
+                        name=re.sub(r'\d_', '', asset["assetId"].iloc[0]),
+                        room_id=room_id,
+                        object_n=len(rooms[room_id].assets)
+                    ),
+                    assetId=asset["assetId"].iloc[0],
+                    position=Vector3(
+                        x=placement["centerX"],
+                        y=center_y_position,
+                        z=placement["centerZ"],
+                    ),
+                    rotation=Vector3(x=0, y=placement["rotation"], z=0),
+                    kinematic=True,
+                )
+            )
+
+            rooms_lines_df_map[room_id] = rooms_lines_df_map[room_id].drop(room_line_i)
+            line_string = room_line["lineString"]
+            line_string -= placement["poly"]
+
+            if isinstance(line_string, MultiLineString):
+                line_strings_to_add = [ls for ls in line_string.geoms]
+            elif line_string.length:
+                line_strings_to_add = [line_string]
+            else:
+                line_strings_to_add = []
+            
+            if line_strings_to_add:
+                lines_to_append = []
+                for ls in line_strings_to_add:
+                    start, end = ls.boundary.geoms
+                    x1, z1 = start.x, start.y
+                    x2, z2 = end.x, end.y
+                    lines_to_append.append({
+                        "length": ls.length,
                         "x1": min(x1, x2),
                         "x2": max(x1, x2),
                         "z1": min(z1, z2),
                         "z2": max(z1, z2),
-                        "lineString": line_string,
+                        "lineString": ls,
                         "wallId": room_line["wallId"],
-                    }
+                    })
+                lines_to_append = pd.DataFrame(lines_to_append)
+                rooms_lines_df_map[room_id] = pd.concat(
+                    [rooms_lines_df_map[room_id], lines_to_append], ignore_index=True
                 )
-            lines_to_append = pd.DataFrame(lines_to_append)
-            rooms_lines_df_map[room_id] = pd.concat(
-                [rooms_lines_df_map[room_id], lines_to_append], ignore_index=True
-            )
-        tvs_per_room[room_id] += 1
+            tvs_per_room[room_id] += 1
+            current_tv_count += 1
+
     return tvs_per_room, rooms_lines_df_map, wall_object_heights_per_room
 
 
@@ -1058,6 +1067,7 @@ def default_add_wall_objects(
     boundary_groups: BoundaryGroups,
     room_type_map: Dict[int, str],
     ceiling_height: float,
+    user_wall_objs: Optional[List[dict]] = None,
 ) -> None:
     """Add wall objects to the house."""
     wall_map = {w["id"]: w for w in partial_house.walls}
@@ -1070,6 +1080,7 @@ def default_add_wall_objects(
         wall_map=wall_map,
         ceiling_height=ceiling_height,
         pt_db=pt_db,
+        user_wall_objs=user_wall_objs,  # 传入用户设置
     )
     tvs_per_room, rooms_lines_df_map, wall_object_heights_per_room = add_televisions(
         partial_house=partial_house,
@@ -1080,6 +1091,7 @@ def default_add_wall_objects(
         wall_map=wall_map,
         ceiling_height=ceiling_height,
         pt_db=pt_db,
+        user_wall_objs=user_wall_objs,  # 传入用户设置
     )
 
     add_paintings(
@@ -1092,4 +1104,5 @@ def default_add_wall_objects(
         rooms_lines_df_map=rooms_lines_df_map,
         wall_object_heights_per_room=wall_object_heights_per_room,
         pt_db=pt_db,
+        user_wall_objs=user_wall_objs,  # 传入用户设置
     )

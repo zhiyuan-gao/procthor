@@ -835,7 +835,9 @@ class ProceduralRoom:
     def sample_anchor_location(
         self,
         rectangle: Tuple[float, float, float, float],
-    ) -> Tuple[Optional[float], Optional[float], int, str]:
+        anchor_types: Optional[List[str]] = None 
+    ) -> Union[Tuple[Optional[float], Optional[float], int, str],
+            List[Tuple[Optional[float], Optional[float], int, str]]]:
         """Chooses which object to place in the rectangle.
 
         Returns:
@@ -872,49 +874,99 @@ class ProceduralRoom:
         """
         x0, z0, x1, z1 = rectangle
 
-        # Place the object in a corner of the room
-        rect_corners = [(x0, z0, 2), (x0, z1, 8), (x1, z1, 6), (x1, z0, 0)]
-        random.shuffle(rect_corners)
-        epsilon = 1e-3
-        corners = []
-        for x, z, anchor_delta in rect_corners:
-            q1 = self.room_polygon.is_point_inside((x + epsilon, z + epsilon))
-            q2 = self.room_polygon.is_point_inside((x - epsilon, z + epsilon))
-            q3 = self.room_polygon.is_point_inside((x - epsilon, z - epsilon))
-            q4 = self.room_polygon.is_point_inside((x + epsilon, z - epsilon))
-            if (q1 and q3 and not q2 and not q4) or (q2 and q4 and not q1 and not q3):
-                # DiagCorner
-                corners.append((x, z, anchor_delta, "inCorner"))
-            elif (
-                (q1 and not q2 and not q3 and not q4)
-                or (q2 and not q1 and not q3 and not q4)
-                or (q3 and not q1 and not q2 and not q4)
-                or (q4 and not q1 and not q2 and not q3)
-            ):
-                corners.append((x, z, anchor_delta, "inCorner"))
-        if corners:
-            return random.choice(corners)
+        # 当 anchor_types 为 None 时，使用原逻辑：所有类型都允许
+        if anchor_types is None:
 
-        # Place the object on an edge of the room
-        edges = []
-        rect_edge_lines = [
-            (LineString([(x0, z0), (x1, z0)]), 1),
-            (LineString([(x0, z0), (x0, z1)]), 5),
-            (LineString([(x1, z0), (x1, z1)]), 3),
-            (LineString([(x0, z1), (x1, z1)]), 7),
-        ]
-        random.shuffle(rect_edge_lines)
-        room_outer_lines = LineString(self.room_polygon.polygon.exterior.coords)
-        for rect_edge_line, anchor_delta in rect_edge_lines:
-            if room_outer_lines.contains(rect_edge_line):
-                xs = [p[0] for p in rect_edge_line.coords]
-                zs = [p[1] for p in rect_edge_line.coords]
-                edges.append((xs, zs, anchor_delta, "onEdge"))
-        if edges and random.random() < P_CHOOSE_EDGE:
-            return random.choice(edges)
+            # Place the object in a corner of the room
+            rect_corners = [(x0, z0, 2), (x0, z1, 8), (x1, z1, 6), (x1, z0, 0)]
+            random.shuffle(rect_corners)
+            epsilon = 1e-3
+            corners = []
+            for x, z, anchor_delta in rect_corners:
+                q1 = self.room_polygon.is_point_inside((x + epsilon, z + epsilon))
+                q2 = self.room_polygon.is_point_inside((x - epsilon, z + epsilon))
+                q3 = self.room_polygon.is_point_inside((x - epsilon, z - epsilon))
+                q4 = self.room_polygon.is_point_inside((x + epsilon, z - epsilon))
+                if (q1 and q3 and not q2 and not q4) or (q2 and q4 and not q1 and not q3):
+                    # DiagCorner
+                    corners.append((x, z, anchor_delta, "inCorner"))
+                elif (
+                    (q1 and not q2 and not q3 and not q4)
+                    or (q2 and not q1 and not q3 and not q4)
+                    or (q3 and not q1 and not q2 and not q4)
+                    or (q4 and not q1 and not q2 and not q3)
+                ):
+                    corners.append((x, z, anchor_delta, "inCorner"))
+            if corners:
+                return random.choice(corners)
 
-        # Place an object in the middle of the room
-        return (None, None, 4, "inMiddle")
+            # Place the object on an edge of the room
+            edges = []
+            rect_edge_lines = [
+                (LineString([(x0, z0), (x1, z0)]), 1),
+                (LineString([(x0, z0), (x0, z1)]), 5),
+                (LineString([(x1, z0), (x1, z1)]), 3),
+                (LineString([(x0, z1), (x1, z1)]), 7),
+            ]
+            random.shuffle(rect_edge_lines)
+            room_outer_lines = LineString(self.room_polygon.polygon.exterior.coords)
+            for rect_edge_line, anchor_delta in rect_edge_lines:
+                if room_outer_lines.contains(rect_edge_line):
+                    xs = [p[0] for p in rect_edge_line.coords]
+                    zs = [p[1] for p in rect_edge_line.coords]
+                    edges.append((xs, zs, anchor_delta, "onEdge"))
+            if edges and random.random() < P_CHOOSE_EDGE:
+                return random.choice(edges)
+
+            # Place an object in the middle of the room
+            return (None, None, 4, "inMiddle")
+
+        else:
+            # 当 anchor_types 被给定时，返回所有可能的组合，按优先级顺序排列  ['inCorner', 'onEdge', 'inMiddle']
+            results = []
+
+            # 角落组合
+            rect_corners = [(x0, z0, 2), (x0, z1, 8), (x1, z1, 6), (x1, z0, 0)]
+            epsilon = 1e-3
+            corners = []
+            for x, z, anchor_delta in rect_corners:
+                q1 = self.room_polygon.is_point_inside((x + epsilon, z + epsilon))
+                q2 = self.room_polygon.is_point_inside((x - epsilon, z + epsilon))
+                q3 = self.room_polygon.is_point_inside((x - epsilon, z - epsilon))
+                q4 = self.room_polygon.is_point_inside((x + epsilon, z - epsilon))
+                if (q1 and q3 and not q2 and not q4) or (q2 and q4 and not q1 and not q3):
+                    corners.append((x, z, anchor_delta, "inCorner"))
+                elif ((q1 and not q2 and not q3 and not q4) or 
+                    (q2 and not q1 and not q3 and not q4) or
+                    (q3 and not q1 and not q2 and not q4) or
+                    (q4 and not q1 and not q2 and not q3)):
+                    corners.append((x, z, anchor_delta, "inCorner"))
+            if "inCorner" in anchor_types and corners:
+                results.extend(corners)
+
+            # 边缘组合
+            edges = []
+            rect_edge_lines = [
+                (LineString([(x0, z0), (x1, z0)]), 1),
+                (LineString([(x0, z0), (x0, z1)]), 5),
+                (LineString([(x1, z0), (x1, z1)]), 3),
+                (LineString([(x0, z1), (x1, z1)]), 7),
+            ]
+            room_outer_lines = LineString(self.room_polygon.polygon.exterior.coords)
+            for rect_edge_line, anchor_delta in rect_edge_lines:
+                if room_outer_lines.contains(rect_edge_line):
+                    xs = [p[0] for p in rect_edge_line.coords]
+                    zs = [p[1] for p in rect_edge_line.coords]
+                    edges.append((xs, zs, anchor_delta, "onEdge"))
+            if "onEdge" in anchor_types and edges:
+                results.extend(edges)
+
+            # 中心组合
+            if "inMiddle" in anchor_types:
+                results.append((None, None, 4, "inMiddle"))
+
+            return results
+
 
     def save_viz(self, path) -> None:
         import matplotlib.pyplot as plt
@@ -1206,6 +1258,99 @@ def default_add_rooms(
     partial_house.rooms = rooms
 
 
+def sample_given_type_asset(
+    room: ProceduralRoom,
+    rectangle: Tuple[float, float, float, float],
+    anchor_type: str,
+    anchor_delta: int,
+    spawnable_assets: pd.DataFrame,
+) -> Optional[Union[ChosenAsset, ChosenAssetGroup]]:
+    """Chooses an asset to place in the room.
+
+    asset groups are not used here, maybe later
+
+    Args:
+        rectangle: The size of the outer rectangle that the object must
+            fit inside of.
+        anchor_type: The anchor type, in :code:`{"inCorner", "inMiddle", "onEdge"}`.
+
+    Returns:
+        The chosen asset or asset group. The rotated flag is set to
+        :code:`True` if the x and z sides should be flipped.
+
+    """
+    set_rotated = None
+
+    # NOTE: Choose the valid rotations
+    x0, z0, x1, z1 = rectangle
+    rect_x_length = x1 - x0
+    rect_z_length = z1 - z0
+
+    # NOTE: add margin to each object.
+    # NOTE: z is the forward direction on each object.
+    # Therefore, we only add space in front of the object.
+    if anchor_type == "onEdge":
+        x_margin = 2 * MARGIN["edge"]["sides"]
+        z_margin = (
+            MARGIN["edge"]["front"] + MARGIN["edge"]["back"] + PADDING_AGAINST_WALL
+        )
+    elif anchor_type == "inCorner":
+        x_margin = 2 * MARGIN["corner"]["sides"] + PADDING_AGAINST_WALL
+        z_margin = (
+            MARGIN["corner"]["front"] + MARGIN["corner"]["back"] + PADDING_AGAINST_WALL
+        )
+    elif anchor_type == "inMiddle":
+        # NOTE: add space to both sides
+        x_margin = 2 * MARGIN["middle"]
+        z_margin = 2 * MARGIN["middle"]
+
+    # NOTE: define the size filters
+    if anchor_delta in {1, 7}:
+        # NOTE: should not be rotated
+        size_filter = lambda assets_df: (
+            (assets_df["xSize"] + x_margin < rect_x_length)
+            & (assets_df["zSize"] + z_margin < rect_z_length)
+        )
+        set_rotated = False
+    elif anchor_delta in {3, 5}:
+        # NOTE: must be rotated
+        size_filter = lambda assets_df: (
+            (assets_df["zSize"] + z_margin < rect_x_length)
+            & (assets_df["xSize"] + x_margin < rect_z_length)
+        )
+        set_rotated = True
+    else:
+        # NOTE: either rotated or not rotated works
+        size_filter = lambda assets_df: (
+            (
+                (assets_df["xSize"] + x_margin < rect_x_length)
+                & (assets_df["zSize"] + z_margin < rect_z_length)
+            )
+            | (
+                (assets_df["zSize"] + z_margin < rect_x_length)
+                & (assets_df["xSize"] + x_margin < rect_z_length)
+            )
+        )
+
+    # TODO get candidates for asset type
+    asset_candidates = spawnable_assets[
+        spawnable_assets[anchor_type] & size_filter(spawnable_assets)
+    ]
+
+    # NOTE: no assets fit the anchor_type and size criteria
+    if not len(asset_candidates):
+        return None
+
+    asset = asset_candidates.sample()
+
+    return room.place_asset(
+        asset=asset,
+        set_rotated=set_rotated,
+        rect_x_length=rect_x_length,
+        rect_z_length=rect_z_length,
+    )
+
+
 def default_add_floor_objects(
     partial_house: "PartialHouse",
     controller: Controller,
@@ -1215,6 +1360,7 @@ def default_add_floor_objects(
     p_allow_house_plant_group: float = P_ALLOW_HOUSE_PLANT_GROUP,
     p_allow_tv_group: float = P_ALLOW_TV_GROUP,
     target_room_ids: Optional[List[int]] = None,
+    user_floor_objs: Optional[dict] = None
 ) -> None:
     """Add objects to each room.
 
@@ -1246,6 +1392,11 @@ def default_add_floor_objects(
         priority_asset_types = copy.deepcopy(pt_db.PRIORITY_ASSET_TYPES[room.room_type])
         random.shuffle(priority_asset_types)
 
+        if user_floor_objs:
+            user_floor_objs_per_room = [obj for obj in user_floor_objs if obj.get("room") == str(room.room_id)]
+        else:
+            user_floor_objs_per_room = []
+
         spawnable_asset_group_info = get_spawnable_asset_group_info(
             split=room.split, controller=controller, pt_db=pt_db
         )
@@ -1254,7 +1405,114 @@ def default_add_floor_objects(
         ]
 
         asset = None
-        for i in range(max_floor_objects):
+
+        remaining_objects_to_sample = max_floor_objects - len(user_floor_objs_per_room)
+        assert remaining_objects_to_sample >= 0, "Too many user input objects"
+
+        try_times = 0
+        while user_floor_objs_per_room:
+            print('try_times:', try_times)
+
+            cache_rectangles = try_times != 0
+            if cache_rectangles:
+                room.last_rectangles.remove(rectangle)
+                rectangle = room.sample_next_rectangle(cache_rectangles=True)
+            else:
+                rectangle = room.sample_next_rectangle()
+            # rectangle = room.sample_next_rectangle()
+            # print('rectangle:', rectangle)
+
+            if rectangle is None:
+                print(f'no more rectangles to sample in room {room.room_id}')
+                break 
+
+            # try to place the each user input objects in this rectangle
+            for floor_obj_info in user_floor_objs_per_room:
+                find_asset = False
+
+                input_asset_type = floor_obj_info["asset"]
+                user_spawnable_assets=spawnable_assets[spawnable_assets["assetType"] == input_asset_type]
+                # print("_______________________________________")
+                # print(user_spawnable_assets)
+                
+                all_anchor_types = ['inCorner', 'onEdge', 'inMiddle']
+                allowed_anchor_types = [key for key in all_anchor_types if pt_db.PLACEMENT_ANNOTATIONS.loc[input_asset_type][key]]
+
+                anchor_results = room.sample_anchor_location(
+                    rectangle, anchor_types=allowed_anchor_types)
+
+                # try each anchor combination
+                for result in anchor_results:
+
+                    x_info, z_info, anchor_delta, anchor_type = result
+
+                    asset = sample_given_type_asset(
+                        room=room,
+                        rectangle=rectangle,
+                        anchor_type=anchor_type,
+                        anchor_delta=anchor_delta,
+                        spawnable_assets=user_spawnable_assets,
+                    )
+
+                    if asset:
+                        print('yeah')
+                        # place asset here
+                        room.sample_place_asset_in_rectangle(
+                            asset=asset,
+                            rectangle=rectangle,
+                            anchor_type=anchor_type,
+                            x_info=x_info,
+                            z_info=z_info,
+                            anchor_delta=anchor_delta,
+                        )
+
+                        added_asset_types = []
+                        if "assetType" in asset:
+                            added_asset_types.append(asset["assetType"])
+                        else:
+                            added_asset_types.extend([o["assetType"] for o in asset["objects"]])
+
+                            if not asset["allowDuplicates"]:
+                                spawnable_asset_groups = spawnable_asset_groups.query(
+                                    f"assetGroupName!='{asset['assetGroupName']}'"
+                                )
+
+                        for asset_type in added_asset_types:
+                            # Remove spawned object types from `priority_asset_types` when appropriate
+                            if asset_type in priority_asset_types:
+                                priority_asset_types.remove(asset_type)
+
+                            allow_duplicates_of_asset_type = pt_db.PLACEMENT_ANNOTATIONS.loc[
+                                asset_type
+                            ]["multiplePerRoom"]
+
+                            if not allow_duplicates_of_asset_type:
+                                # NOTE: Remove all asset groups that have the type
+                                spawnable_asset_groups = spawnable_asset_groups[
+                                    ~spawnable_asset_groups[f"has{asset_type}"]
+                                ]
+
+                                # NOTE: Remove all standalone assets that have the type
+                                spawnable_assets = spawnable_assets[
+                                    spawnable_assets["assetType"] != asset_type
+                                ]
+                        user_floor_objs_per_room.remove(floor_obj_info)
+                        find_asset = True
+                        break
+                if find_asset:
+                    break
+
+                # else:
+                #     continue
+
+            try_times += 1
+            if try_times == 200:
+                print(f"room {room.room_id} failed to place user input objects")
+                break
+        else:
+            print(f"room {room.room_id} successfully placed user input objects")
+
+        for i in range(remaining_objects_to_sample):
             cache_rectangles = i != 0 and asset is None
             if cache_rectangles:
                 # NOTE: Don't resample failed rectangles
@@ -1265,7 +1523,7 @@ def default_add_floor_objects(
 
             if rectangle is None:
                 break
-
+            print('rectangle22:', rectangle)
             x_info, z_info, anchor_delta, anchor_type = room.sample_anchor_location(
                 rectangle
             )

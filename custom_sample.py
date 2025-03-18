@@ -3,15 +3,62 @@ from procthor.generation.room_specs import *
 from procthor.generation.house import House, HouseStructure, NextSamplingStage, PartialHouse
 
 
+# """
+# three levels of input
+
+# ui input:  room type, objs in rooms,
+# user input dict: set the room id automaticly
+# room specs: input for procthor
+
+# """
+
+# # example user's input
+# # 
+# # 
+
+# # ui--> user input-->
+user_defined_house_settings = {
+    2: {  # 房间 ID
+        "type": "bedroom",
+        "complete": False,  # False 表示还有额外的随机物品
+        "FLOOR_OBJS": [ "Desk", "Bed"],
+        "WALL_OBJS": ["painting", "mirror"],
+        "SMALL_OBJS": {
+            "lamp": {"on": "bed"},
+            "book": {"on": "desk"}
+        }
+    },
+    4: {  # 另一个房间
+        "type": "kitchen",
+        "complete": True,  # True 表示房间里只有用户指定的物品，ProcTHOR 不会添加额外物品
+        "FLOOR_OBJS": ["DiningTable", ],
+        "WALL_OBJS": ["cabinet"],
+        "SMALL_OBJS": {
+            "plate": {"on": "stove"},
+            "cup": {"on": "stove"}
+        }
+    },
+    3: {
+    },
+
+}
+
+#     PRIORITY_ASSET_TYPES={
+#         "Bedroom": ["Bed", "Dresser"],
+#         "LivingRoom": ["Television", "DiningTable", "Sofa"],
+#         "Kitchen": ["CounterTop", "Fridge"],
+#         "Bathroom": ["Toilet", "Sink"],
+#     },
+
 # example of a custom sampler
 LIVING_ROOM_SPEC_SAMPLER = RoomSpecSampler(
     [      
         # here only sample living room
-        RoomSpec(
-            room_spec_id="living-room",
-            sampling_weight=1,
-            spec=[LeafRoom(room_id=2, ratio=1, room_type="LivingRoom")],
-        ),
+        # RoomSpec(
+        #     room_spec_id="living-room",
+        #     sampling_weight=1,
+        #     spec=[LeafRoom(room_id=2, ratio=1, room_type="LivingRoom")],
+        # ),
 
         # RoomSpec(
         #     room_spec_id="4-room",
@@ -38,26 +85,27 @@ LIVING_ROOM_SPEC_SAMPLER = RoomSpecSampler(
         #         ),
         #     ],
         # ),
-        # RoomSpec(
-        #     room_spec_id="kitchen-living-bedroom-room",
-        #     sampling_weight=1,
-        #     spec=[
-        #         MetaRoom(
-        #             ratio=2,
-        #             children=[
-        #                 LeafRoom(room_id=6, ratio=3, room_type="Kitchen"),
-        #                 LeafRoom(room_id=7, ratio=2, room_type="LivingRoom"),
-        #             ],
-        #         ),
-        #         LeafRoom(room_id=2, ratio=1, room_type="Bedroom"),
-        #     ],
-        # ),
+        RoomSpec(
+            room_spec_id="kitchen-living-bedroom-room",
+            sampling_weight=1,
+            spec=[
+                MetaRoom(
+                    ratio=2,
+                    children=[
+                        LeafRoom(room_id=4, ratio=3, room_type="Kitchen"),
+                        LeafRoom(room_id=3, ratio=2, room_type="LivingRoom"),
+                    ],
+                ),
+                LeafRoom(room_id=2, ratio=1, room_type="Bedroom"),
+            ],
+        ),
 
 
 
 
     ]
 )
+
 
 # for i in range(5):
 
@@ -69,11 +117,13 @@ LIVING_ROOM_SPEC_SAMPLER = RoomSpecSampler(
 #     house.to_json(f"/home/zgao/procthor/procthor/houses/house_{i+8}.json")
 
 
-house_generator = HouseGenerator(
-    split="train", seed=50, room_spec_sampler=LIVING_ROOM_SPEC_SAMPLER)
+# house_generator = HouseGenerator(
+#     split="train", seed=50, room_spec_sampler=LIVING_ROOM_SPEC_SAMPLER,
+#      user_defined_params = user_defined_house_settings)
 
-# house, _ = house_generator.sample()
-house, sampling_stage_to_ph = house_generator.sample(return_partial_houses=True)
+# # house, _ = house_generator.sample()
+# house, sampling_stage_to_ph = house_generator.sample(return_partial_houses=False)
+# house.to_json("temp4.json")
 
 # partial_house = sampling_stage_to_ph[NextSamplingStage.SMALL_OBJS]
 # print(partial_house.objects)
