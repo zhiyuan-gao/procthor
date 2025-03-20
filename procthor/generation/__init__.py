@@ -197,7 +197,8 @@ class HouseGenerator:
                     sampling_stage_to_ph[
                         partial_house.next_sampling_stage
                     ] = copy.deepcopy(partial_house)
-
+        # print("____")
+        # print(partial_house)
         # NOTE: DOORS
         if partial_house.next_sampling_stage <= NextSamplingStage.DOORS:
             with advance_and_record_partial(partial_house):
@@ -212,7 +213,8 @@ class HouseGenerator:
         floor_polygons = get_floor_polygons(
             xz_poly_map=partial_house.house_structure.xz_poly_map
         )
-
+        # print("after doors")
+        # print(partial_house)
         if partial_house.next_sampling_stage <= NextSamplingStage.LIGHTS:
             with advance_and_record_partial(partial_house):
                 gfs.add_lights(
@@ -270,7 +272,7 @@ class HouseGenerator:
                 floor_objects = [*partial_house.objects]
                 gfs.randomize_object_colors(objects=floor_objects, pt_db=self.pt_db)
                 gfs.randomize_object_states(objects=floor_objects, pt_db=self.pt_db)
-
+        print('sample wall objs')
         if partial_house.next_sampling_stage < NextSamplingStage.WALL_OBJS:
             with advance_and_record_partial(partial_house):
                 user_wall_objs = self.user_defined_params.get('floor_wall_objects', None).get('wall_objects', None) if self.user_defined_params else None
@@ -288,6 +290,7 @@ class HouseGenerator:
                 wall_objects = [*partial_house.objects[len(floor_objects) :]]
                 gfs.randomize_object_colors(objects=wall_objects, pt_db=self.pt_db)
                 gfs.randomize_object_states(objects=wall_objects, pt_db=self.pt_db)
+        print('sample small objs')
 
         if partial_house.next_sampling_stage < NextSamplingStage.SMALL_OBJS:
             no_floor_and_wall_objs= len(partial_house.objects)
@@ -311,6 +314,8 @@ class HouseGenerator:
         assign_layer_to_rooms(partial_house=partial_house)
 
         sampling_stage_to_ph[partial_house.next_sampling_stage] = partial_house
+
+        print('end sample')
 
         return partial_house.to_house(), sampling_stage_to_ph
     

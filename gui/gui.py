@@ -1,14 +1,20 @@
 import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QStackedWidget,
     QTreeWidget, QTreeWidgetItem, QComboBox, QHBoxLayout, QSpinBox, QMessageBox,
     QTableWidget, QTableWidgetItem, QAbstractItemView
 )
-from PyQt6.QtCore import Qt,QEvent,pyqtSignal
+from PyQt6.QtCore import Qt,QEvent,pyqtSignal,QThread
 import json
 import re
-
-from procthor.databases import DEFAULT_PROCTHOR_DATABASE, ProcTHORDatabase
+import multiprocessing
+from procthor.databases import DEFAULT_PROCTHOR_DATABASE
+from procthor.generation import PROCTHOR10K_ROOM_SPEC_SAMPLER, HouseGenerator
+from procthor.generation.room_specs import RoomSpec,RoomSpecSampler,LeafRoom,MetaRoom
+from typing import List, Optional, Union
 
 
 pt_db = DEFAULT_PROCTHOR_DATABASE
@@ -35,7 +41,135 @@ RECEPTACLES = list(pt_db.OBJECTS_IN_RECEPTACLES.keys())
 
 # TODO: for each receptacle, small objects are different
 
+# TODO: mechanism to deal with random user input
 
+def structure_to_roomspec(structure: dict) -> RoomSpec:
+    """
+    Convert the structure dictionary from the GUI into a RoomSpec object.
+    
+    Rules:
+      - If the node type is "Group" (case insensitive):
+            - If children is empty, ignore this node (return None);
+            - If there is only one child node, return that child directly;
+            - Otherwise, wrap the processed child node list into a MetaRoom,
+              using the value from the node's ratio (defaulting to 1 if empty).
+      - If the node type is "Root", process its children and return the expanded list;
+      - For other nodes (leaf nodes):
+            - If there are no children, generate a LeafRoom,
+              extract room_id from the name, and assign node["ratio"] (converted to int, default 1);
+            - If there are children, wrap them into a MetaRoom using the node's ratio (default 1).
+      - Finally, generate room_spec_id by concatenating all leaf node room_types, with a fixed sampling_weight of 1.
+    """
+    def process_node(node: dict, parent_is_group: bool = False) -> Optional[Union[LeafRoom, MetaRoom, List[Union[LeafRoom, MetaRoom]]]]:
+        node_type = (node.get("type") or "").strip().lower()
+        children = node.get("children", [])
+        
+        if node_type == "group":
+            # For Group nodes: if children is empty, return None;
+            # If there is only one child node, return that child directly;
+            # Otherwise, wrap it into a MetaRoom using the ratio from the node (default 1).
+            if not children:
+                return None
+            processed = []
+            for child in children:
+                res = process_node(child, parent_is_group=True)
+                if res is None:
+                    continue
+                if isinstance(res, list):
+                    processed.extend(res)
+                else:
+                    processed.append(res)
+            if not processed:
+                return None
+            if len(processed) == 1:
+                return processed[0]
+            try:
+                ratio = int(node.get("ratio") or 1)
+            except Exception:
+                ratio = 1
+            return MetaRoom(ratio=ratio, children=processed)
+        
+        elif node_type == "root":
+            # Root nodes directly return the processed results of their children (expanded as a list)
+            processed = []
+            for child in children:
+                res = process_node(child, parent_is_group=False)
+                if res is None:
+                    continue
+                if isinstance(res, list):
+                    processed.extend(res)
+                else:
+                    processed.append(res)
+            return processed
+        
+        else:
+            # Other nodes
+            if children:
+                processed = []
+                for child in children:
+                    res = process_node(child, parent_is_group=parent_is_group)
+                    if res is None:
+                        continue
+                    if isinstance(res, list):
+                        processed.extend(res)
+                    else:
+                        processed.append(res)
+                try:
+                    ratio = int(node.get("ratio") or 1)
+                except Exception:
+                    ratio = 1
+                return MetaRoom(ratio=ratio, children=processed)
+            else:
+                # Leaf node: extract room_id from the name, ratio defaults to node value (default 1)
+                m = re.search(r'\d+', node.get("name", "0"))
+                room_id = int(m.group()) if m else 0
+                try:
+                    ratio = int(node.get("ratio") or 1)
+                except Exception:
+                    ratio = 1
+                room_type_val = node.get("type") or "Unknown"
+                # If a leaf node is inside a group and the room type is Bathroom, set avoid_doors_from_metarooms=True
+                avoid = True if room_type_val.strip().lower() == "bathroom" and parent_is_group else False
+                return LeafRoom(room_id=room_id, ratio=ratio, room_type=room_type_val, avoid_doors_from_metarooms=avoid)
+    
+    processed = process_node(structure, parent_is_group=False)
+    if processed is None:
+        spec_list = []
+    elif isinstance(processed, list):
+        spec_list = processed
+    else:
+        spec_list = [processed]
+    
+    # Generate room_spec_id: collect all leaf node room_types, concatenate them, and append "-room"
+    def collect_leaf_types(item: Union[LeafRoom, MetaRoom]) -> List[str]:
+        if isinstance(item, LeafRoom):
+            return [item.room_type.strip().lower()]
+        elif isinstance(item, MetaRoom):
+            types = []
+            for child in item.children:
+                types.extend(collect_leaf_types(child))
+            return types
+        else:
+            return []
+    
+    collected_types = []
+    for item in spec_list:
+        collected_types.extend(collect_leaf_types(item))
+    room_spec_id = "-".join(collected_types) + "-room" if collected_types else "default-room"
+    
+    return RoomSpec(room_spec_id=room_spec_id, sampling_weight=1, spec=spec_list)
+
+
+class ProcessWorker(QThread):
+    finished_signal = pyqtSignal()
+
+    def __init__(self, house_settings, parent=None):
+        super().__init__(parent)
+        self.house_settings = house_settings
+
+    def run(self):
+        process_house_settings(self.house_settings)
+        self.finished_signal.emit()
 
 class HouseDesigner(QWidget):
 
@@ -890,75 +1024,38 @@ class HouseDesigner(QWidget):
             "floor_wall_objects": self.extract_floor_wall_objects(),
             "small_objects": self.extract_small_objects()
         }
-        # 将字典转换为漂亮的JSON字符串，indent参数用于缩进，ensure_ascii=False确保中文正常显示
+        
         json_output = json.dumps(house_settings, indent=4, ensure_ascii=False)
         print(json_output)
 
+        proc = multiprocessing.Process(target=process_house_settings, args=(house_settings,))
+        proc.start()
 
-app = QApplication(sys.argv)
-designer = HouseDesigner()
-designer.show()
-sys.exit(app.exec())
+        # 使用 QThread 在后台运行 process_house_settings
+        self.worker = ProcessWorker(house_settings)
+        self.worker.finished_signal.connect(self.on_process_finished)
+        self.worker.start()
 
 
-# {
-#     "structure": {
-#         "name": "Root",
-#         "type": "Root",
-#         "ratio": "",
-#         "children": [
-#             {
-#                 "name": "Room 2",
-#                 "type": "Bedroom",
-#                 "ratio": "1",
-#                 "children": []
-#             },
-#             {
-#                 "name": "Room 3",
-#                 "type": "Bedroom",
-#                 "ratio": "1",
-#                 "children": []
-#             }
-#         ]
-#     },
-#     "floor_wall_objects": {
-#         "floor_objects": [
-#             {
-#                 "room": "2",
-#                 "object_type": "Floor Object",
-#                 "asset": "Bed"
-#             },
-#             {
-#                 "room": "2",
-#                 "object_type": "Floor Object",
-#                 "asset": "Bed"
-#             },
-#             {
-#                 "room": "2",
-#                 "object_type": "Floor Object",
-#                 "asset": "Bed"
-#             }
-#         ],
-#         "wall_objects": []
-#     },
-#     "small_objects": [
-#     {
-#         "room": "2",
-#         "small_object": "Book",
-#         "placed_on": "Bed_1(Room 2 (Bedroom))",
-#         "receptacle_type": "Bed"
-#     },
-#     {
-#         "room": "2",
-#         "small_object": "Lamp",
-#         "placed_on": "Bed_2(Room 2 (Bedroom))",
-#         "receptacle_type": "Bed"
-#     }
-# ]
-# }
 
-# {
-# 'Bed':{"Bed_1(Room 2 (Bedroom))":['Lamp','Book','Book'],"Bed_2(Room 2 (Bedroom))":['Book']},
-# 'Desk':{"Desk_1(Room 2 (Bedroom))":['Lamp'],"Desk_2(Room 2 (Bedroom))":['Book']},
-# 'Sofa':{"Sofa_1(Room 2 (Bedroom))":['Lamp'],"Sofa_2(Room 2 (Bedroom))":['Book']},
-# }
+    def on_process_finished(self):
+        print("process_house_settings 已运行完毕")
+
+def process_house_settings(house_settings):
+    rs = structure_to_roomspec(house_settings['structure'])
+
+    room_spec_sampler =RoomSpecSampler([rs])
+    house_generator = HouseGenerator(
+        split="train", seed=50, room_spec_sampler=room_spec_sampler,
+         user_defined_params = house_settings)
+
+    house, _ = house_generator.sample(return_partial_houses=False)
+    house.to_json("temp4.json")
+    print("House saved to temp4.json")
+
+if __name__ == "__main__":
+        
+    app = QApplication(sys.argv)
+    designer = HouseDesigner()
+    designer.show()
+    sys.exit(app.exec())

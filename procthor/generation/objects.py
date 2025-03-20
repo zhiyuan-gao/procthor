@@ -552,6 +552,7 @@ class ProceduralRoom:
     def _cut_wall_thickness(self) -> None:
         inter = self.open_polygon.cut_edges()
         self.open_polygon = OrthogonalPolygon(polygon=copy.deepcopy(inter))
+        self.room_polygon = OrthogonalPolygon(polygon=copy.deepcopy(inter))
 
     def _cut_out_doors(self) -> None:
         for door_polygon in self.door_polygons:
@@ -934,6 +935,7 @@ class ProceduralRoom:
                 q2 = self.room_polygon.is_point_inside((x - epsilon, z + epsilon))
                 q3 = self.room_polygon.is_point_inside((x - epsilon, z - epsilon))
                 q4 = self.room_polygon.is_point_inside((x + epsilon, z - epsilon))
+                
                 if (q1 and q3 and not q2 and not q4) or (q2 and q4 and not q1 and not q3):
                     corners.append((x, z, anchor_delta, "inCorner"))
                 elif ((q1 and not q2 and not q3 and not q4) or 
@@ -1411,7 +1413,6 @@ def default_add_floor_objects(
 
         try_times = 0
         while user_floor_objs_per_room:
-            print('try_times:', try_times)
 
             cache_rectangles = try_times != 0
             if cache_rectangles:
@@ -1419,8 +1420,6 @@ def default_add_floor_objects(
                 rectangle = room.sample_next_rectangle(cache_rectangles=True)
             else:
                 rectangle = room.sample_next_rectangle()
-            # rectangle = room.sample_next_rectangle()
-            # print('rectangle:', rectangle)
 
             if rectangle is None:
                 print(f'no more rectangles to sample in room {room.room_id}')
@@ -1432,16 +1431,13 @@ def default_add_floor_objects(
 
                 input_asset_type = floor_obj_info["asset"]
                 user_spawnable_assets=spawnable_assets[spawnable_assets["assetType"] == input_asset_type]
-                # print("_______________________________________")
-                # print(user_spawnable_assets)
-                
+
                 all_anchor_types = ['inCorner', 'onEdge', 'inMiddle']
                 allowed_anchor_types = [key for key in all_anchor_types if pt_db.PLACEMENT_ANNOTATIONS.loc[input_asset_type][key]]
 
                 anchor_results = room.sample_anchor_location(
                     rectangle, anchor_types=allowed_anchor_types)
 
-                # try each anchor combination
                 for result in anchor_results:
 
                     x_info, z_info, anchor_delta, anchor_type = result
@@ -1455,8 +1451,6 @@ def default_add_floor_objects(
                     )
 
                     if asset:
-                        print('yeah')
-                        # place asset here
                         room.sample_place_asset_in_rectangle(
                             asset=asset,
                             rectangle=rectangle,
@@ -1502,15 +1496,12 @@ def default_add_floor_objects(
                 if find_asset:
                     break
 
-                # else:
-                #     continue
-
             try_times += 1
-            if try_times == 200:
+            if try_times == 20:
                 print(f"room {room.room_id} failed to place user input objects")
                 break
         else:
-            print(f"room {room.room_id} successfully placed user input objects")
+            print(f"room {room.room_id} successfully placed user input floor objects")
 
         for i in range(remaining_objects_to_sample):
             cache_rectangles = i != 0 and asset is None
@@ -1523,7 +1514,7 @@ def default_add_floor_objects(
 
             if rectangle is None:
                 break
-            print('rectangle22:', rectangle)
+            
             x_info, z_info, anchor_delta, anchor_type = room.sample_anchor_location(
                 rectangle
             )
@@ -1589,3 +1580,4 @@ def default_add_floor_objects(
                 partial_house.objects.extend(asset.assets_dict)
             else:
                 partial_house.objects.append(asset.asset_dict)
+        print(f"room {room.room_id} successfully finished floor objects sampling") 

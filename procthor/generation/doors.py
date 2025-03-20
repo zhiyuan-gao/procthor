@@ -76,6 +76,7 @@ MAX_DOORS_TO_OUTSIDE = 1
 EPSILON = 1e-3
 """Small value to compare floats within a bound."""
 
+Thickness = 0.05
 
 def default_add_doors(
     partial_house: "PartialHouse",
@@ -807,14 +808,13 @@ def add_door_meta(
                             polygons_to_subtract[room_id].append(polygon)
 
                     continue
-
-        wall_size = abs(wall[1][0] - wall[0][0]) + abs(wall[1][1] - wall[0][1])
+        wall_size = abs(wall[1][0] - wall[0][0]) + abs(wall[1][1] - wall[0][1]) -Thickness * 2
         valid_doors = assets_df[
             assets_df["xSize" if use_frame else "openXSize"] < wall_size
         ]
         door = valid_doors.sample()
         start_door_position = random.uniform(
-            0, wall_size - door["xSize" if use_frame else "openXSize"].iloc[0]
+            Thickness, wall_size - door["xSize" if use_frame else "openXSize"].iloc[0]
         )
 
         # set the position of the door randomly between the wall

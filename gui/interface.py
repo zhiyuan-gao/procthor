@@ -1,8 +1,9 @@
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from procthor.generation import PROCTHOR10K_ROOM_SPEC_SAMPLER, HouseGenerator
 from procthor.generation.room_specs import *
 from procthor.generation.house import House, HouseStructure, NextSamplingStage, PartialHouse
-
-
 import re
 from typing import List, Union, Optional
 
@@ -154,20 +155,20 @@ if __name__ == "__main__":
         ]
     },
     "floor_wall_objects": {
-        # "floor_objects": [
-        #     {
-        #         "room": "2",
-        #         "object_type": "Floor Object",
-        #         "asset": "Desk"
-        #     },
-        #     {
-        #         "room": "2",
-        #         "object_type": "Floor Object",
-        #         "asset": "Bed"
-        #     },
+        "floor_objects": [
+            {
+                "room": "2",
+                "object_type": "Floor Object",
+                "asset": "Desk"
+            },
+            {
+                "room": "2",
+                "object_type": "Floor Object",
+                "asset": "Desk"
+            },
 
-        # ],
-        # "wall_objects": []
+        ],
+        "wall_objects": []
     },
     # "small_objects": [
     # {
@@ -183,14 +184,35 @@ if __name__ == "__main__":
     #     "receptacle_type": "Bed"
     # }]
     }
-    rs = structure_to_roomspec(data['structure'])
 
-    room_spec_sampler =RoomSpecSampler([rs])
-    # print(rs)
 
-    house_generator = HouseGenerator(
-        split="train", seed=50, room_spec_sampler=room_spec_sampler,
-         user_defined_params = data)
+    def process_house_settings(house_settings):
+        rs = structure_to_roomspec(house_settings['structure'])
 
-    house, _ = house_generator.sample(return_partial_houses=False)
-    house.to_json("temp4.json")
+        room_spec_sampler =RoomSpecSampler([rs])
+        # print(rs)
+
+        house_generator = HouseGenerator(
+            split="train", seed=50, room_spec_sampler=room_spec_sampler,
+            user_defined_params = house_settings)
+
+        house, _ = house_generator.sample(return_partial_houses=False)
+        house.to_json("temp4.json")
+        print("House saved to temp4.json")
+
+    process_house_settings(data)
+
+
+
+
+    # rs = structure_to_roomspec(data['structure'])
+
+    # room_spec_sampler =RoomSpecSampler([rs])
+    # # print(rs)
+
+    # house_generator = HouseGenerator(
+    #     split="train", seed=50, room_spec_sampler=room_spec_sampler,
+    #      user_defined_params = data)
+
+    # house, _ = house_generator.sample(return_partial_houses=False)
+    # house.to_json("temp4.json")
