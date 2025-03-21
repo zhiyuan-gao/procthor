@@ -47,7 +47,7 @@ from .room_specs import PROCTHOR10K_ROOM_SPEC_SAMPLER, RoomSpec, RoomSpecSampler
 from .skyboxes import default_add_skybox
 from .small_objects import default_add_small_objects
 from .wall_objects import default_add_wall_objects
-
+from collections import Counter
 
 @define
 class GenerationFunctions:
@@ -259,8 +259,33 @@ class HouseGenerator:
                 )
 
         if partial_house.next_sampling_stage <= NextSamplingStage.FLOOR_OBJS:
+            
+            if self.user_defined_params:
+                user_floor_objs = self.user_defined_params.get('floor_wall_objects', None).get('floor_objects', None)
+
+                sampled_room_types = [room.room_type for room in partial_house.rooms.values()]
+                room_type_counts = Counter(sampled_room_types)
+
+                for floor_obj in user_floor_objs:
+                    input_room_id = floor_obj.get('room')
+                    if input_room_id.casefold() == "random":
+                        room_place_weight = {}
+                        for room in partial_house.rooms.values():
+                            asset_factors = self.pt_db.PLACEMENT_ANNOTATIONS.loc[floor_obj['asset'],f'in{room.room_type}s']
+
+                            room_count = room_type_counts[room.room_type]
+                            weight = asset_factors/room_count
+                            room_place_weight[str(room.room_id)] = weight
+
+                        options = list(room_place_weight.keys())
+                        weights = list(room_place_weight.values())
+                        choice = random.choices(options, weights=weights, k=1)[0]
+                        floor_obj['room'] = choice
+            else:
+                user_floor_objs = None
+
             with advance_and_record_partial(partial_house):
-                user_floor_objs = self.user_defined_params.get('floor_wall_objects', None).get('floor_objects', None) if self.user_defined_params else None
+
                 gfs.add_floor_objects(
                     partial_house=partial_house,
                     controller=self.controller,
@@ -272,8 +297,10 @@ class HouseGenerator:
                 floor_objects = [*partial_house.objects]
                 gfs.randomize_object_colors(objects=floor_objects, pt_db=self.pt_db)
                 gfs.randomize_object_states(objects=floor_objects, pt_db=self.pt_db)
+
         print('sample wall objs')
         if partial_house.next_sampling_stage < NextSamplingStage.WALL_OBJS:
+
             with advance_and_record_partial(partial_house):
                 user_wall_objs = self.user_defined_params.get('floor_wall_objects', None).get('wall_objects', None) if self.user_defined_params else None
                 gfs.add_wall_objects(
@@ -293,6 +320,29 @@ class HouseGenerator:
         print('sample small objs')
 
         if partial_house.next_sampling_stage < NextSamplingStage.SMALL_OBJS:
+
+            # if self.user_defined_params:
+            #     user_floor_objs = self.user_defined_params.get('small_objects', None)
+
+            #     sampled_floor_obj_types = [room.room_type for room in partial_house.rooms.values()]
+            #     room_type_counts = Counter(sampled_floor_obj_types)
+
+            #     for floor_obj in user_floor_objs:
+            #         input_room_id = floor_obj.get('room')
+            #         if input_room_id.casefold() == "random":
+            #             room_place_weight = {}
+            #             for room in partial_house.rooms.values():
+            #                 asset_factors = self.pt_db.PLACEMENT_ANNOTATIONS.loc[floor_obj.asset,f'in{room.room_type}s']
+
+            #                 room_count = room_type_counts[room.room_type]
+            #                 weight = asset_factors/room_count
+            #                 room_place_weight[room.room_id] = weight
+            #             choice = random.choices(room_place_weight.keys(), weights=room_place_weight.values(), k=1)[0]
+            #             floor_obj['room'] = choice
+            # else:
+            #     user_floor_objs = None
+
+
             no_floor_and_wall_objs= len(partial_house.objects)
             with advance_and_record_partial(partial_house):
                 user_small_objs = self.user_defined_params.get('small_objects', None) if self.user_defined_params else None

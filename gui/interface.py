@@ -157,7 +157,7 @@ if __name__ == "__main__":
     "floor_wall_objects": {
         "floor_objects": [
             {
-                "room": "2",
+                "room": "random",
                 "object_type": "Floor Object",
                 "asset": "Desk"
             },

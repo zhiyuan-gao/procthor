@@ -126,6 +126,9 @@ def default_add_small_objects(
         ]
         for room_id, objects in objects_per_room.items()
     }
+    print('receptacles_per_room:', receptacles_per_room)
+    receptacles_in_house = []
+
     object_types_in_rooms = {
         room_id: set(obj["objectType"] for obj in objects)
         for room_id, objects in objects_per_room.items()
