@@ -1497,7 +1497,7 @@ def default_add_floor_objects(
                     break
 
             try_times += 1
-            if try_times == 20:
+            if try_times == 100:
                 print(f"room {room.room_id} failed to place user input objects")
                 break
         else:

@@ -157,9 +157,9 @@ if __name__ == "__main__":
     "floor_wall_objects": {
         "floor_objects": [
             {
-                "room": "random",
+                "room": "2",
                 "object_type": "Floor Object",
-                "asset": "Desk"
+                "asset": "Bed"
             },
             {
                 "room": "2",
@@ -170,19 +170,19 @@ if __name__ == "__main__":
         ],
         "wall_objects": []
     },
-    # "small_objects": [
-    # {
-    #     "room": "2",
-    #     "small_object": "Book",
-    #     "placed_on": "Bed_1(Room 2 (Bedroom))",
-    #     "receptacle_type": "Bed"
-    # },
-    # {
-    #     "room": "2",
-    #     "small_object": "Book",
-    #     "placed_on": "Bed_2(Room 2 (Bedroom))",
-    #     "receptacle_type": "Bed"
-    # }]
+    "small_objects": [
+    {
+        "room": "2",
+        "small_object": "Book",
+        "placed_on": "Bed_1(Room 2 (Bedroom))",
+        "receptacle_type": "Bed"
+    },
+    {
+        "room": "random",
+        "small_object": "Book",
+        "placed_on": "random",
+        "receptacle_type": "random"
+    }]
     }
 
 

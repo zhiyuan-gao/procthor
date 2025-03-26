@@ -272,10 +272,8 @@ class HouseGenerator:
                         room_place_weight = {}
                         for room in partial_house.rooms.values():
                             asset_factors = self.pt_db.PLACEMENT_ANNOTATIONS.loc[floor_obj['asset'],f'in{room.room_type}s']
-
                             room_count = room_type_counts[room.room_type]
-                            weight = asset_factors/room_count
-                            room_place_weight[str(room.room_id)] = weight
+                            room_place_weight[str(room.room_id)] = asset_factors/room_count
 
                         options = list(room_place_weight.keys())
                         weights = list(room_place_weight.values())
@@ -321,27 +319,27 @@ class HouseGenerator:
 
         if partial_house.next_sampling_stage < NextSamplingStage.SMALL_OBJS:
 
-            # if self.user_defined_params:
-            #     user_floor_objs = self.user_defined_params.get('small_objects', None)
+            if self.user_defined_params:
+                user_small_objs = self.user_defined_params.get('small_objects', None)
 
-            #     sampled_floor_obj_types = [room.room_type for room in partial_house.rooms.values()]
-            #     room_type_counts = Counter(sampled_floor_obj_types)
+                sampled_room_types = [room.room_type for room in partial_house.rooms.values()]
+                room_type_counts = Counter(sampled_room_types)
+                # random distribute small objects to rooms
+                for small_obj in user_small_objs:
+                    input_room_id = small_obj.get('room')
+                    if input_room_id.casefold() == "random":
+                        room_place_weight = {}
+                        for room in partial_house.rooms.values():
+                            asset_factors = self.pt_db.PLACEMENT_ANNOTATIONS.loc[small_obj['small_object'],f'in{room.room_type}s']
+                            room_count = room_type_counts[room.room_type]
+                            room_place_weight[str(room.room_id)] = asset_factors/room_count
 
-            #     for floor_obj in user_floor_objs:
-            #         input_room_id = floor_obj.get('room')
-            #         if input_room_id.casefold() == "random":
-            #             room_place_weight = {}
-            #             for room in partial_house.rooms.values():
-            #                 asset_factors = self.pt_db.PLACEMENT_ANNOTATIONS.loc[floor_obj.asset,f'in{room.room_type}s']
-
-            #                 room_count = room_type_counts[room.room_type]
-            #                 weight = asset_factors/room_count
-            #                 room_place_weight[room.room_id] = weight
-            #             choice = random.choices(room_place_weight.keys(), weights=room_place_weight.values(), k=1)[0]
-            #             floor_obj['room'] = choice
-            # else:
-            #     user_floor_objs = None
-
+                        options = list(room_place_weight.keys())
+                        weights = list(room_place_weight.values())
+                        choice = random.choices(options, weights=weights, k=1)[0]
+                        small_obj['room'] = choice
+            else:
+                user_floor_objs = None
 
             no_floor_and_wall_objs= len(partial_house.objects)
             with advance_and_record_partial(partial_house):

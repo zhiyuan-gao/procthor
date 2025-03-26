@@ -17,6 +17,7 @@ from procthor.utils.types import Object, Split, Vector3
 from . import PartialHouse
 from .objects import ProceduralRoom, sample_openness
 from ..databases import ProcTHORDatabase
+from collections import Counter
 
 PARENT_BIAS = defaultdict(
     lambda: 0.2, {"Chair": 0, "ArmChair": 0, "Countertop": 0.2, "ShelvingUnit": 0.4}
@@ -126,8 +127,6 @@ def default_add_small_objects(
         ]
         for room_id, objects in objects_per_room.items()
     }
-    print('receptacles_per_room:', receptacles_per_room)
-    receptacles_in_house = []
 
     object_types_in_rooms = {
         room_id: set(obj["objectType"] for obj in objects)
@@ -167,7 +166,25 @@ def default_add_small_objects(
 
         user_receptacle_per_room = transform_small_objects(user_small_objs_per_room)  # 转换用户提供的数据
         user_receptacle_types = list(user_receptacle_per_room.keys())
-        remaining_receptacles = []  # 存放未被用户指定的 receptacle
+        remaining_receptacles = [] 
+
+        # Here we just assign a receptacle type to small obj for random user input, 
+        # and the specific receptacle asset is chosen in the later for loop
+        receptacle_type_counts = Counter([receptacle["objectType"] for receptacle in receptacles_in_room])
+        for _user_small_obj in user_small_objs_per_room:
+            if _user_small_obj['placed_on'].casefold() == "random":
+                
+                small_obj_type = _user_small_obj['small_object']
+                place_weight = {}
+                for _receptacle_type in list(receptacle_type_counts.keys()):
+                    prob = pt_db.OBJECTS_IN_RECEPTACLES[_receptacle_type].get(small_obj_type, {}).get('p', 0)
+                    place_weight[_receptacle_type] = prob /receptacle_type_counts[_receptacle_type]
+
+                options = list(place_weight.keys())
+                weights = list(place_weight.values())
+                choice = random.choices(options, weights=weights, k=1)[0]
+                _user_small_obj["small_object"] == choice
+                print('success for small obj random')
 
         for receptacle in receptacles_in_room:
 
@@ -189,8 +206,6 @@ def default_add_small_objects(
                         chosen_asset_id = asset_candidates.sample()["assetId"].iloc[0]
                         obj_type = pt_db.ASSET_ID_DATABASE[chosen_asset_id]["objectType"]
                         generated_object_id = f"{obj_type}|{room_id}|{num_placed_object_instances}"
-
-                        print('generated_object_id:', generated_object_id)
 
                         event = controller.step(action="ResetObjectFilter")
                         
