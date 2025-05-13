@@ -15,7 +15,7 @@ from procthor.databases import DEFAULT_PROCTHOR_DATABASE
 from procthor.generation import PROCTHOR10K_ROOM_SPEC_SAMPLER, HouseGenerator
 from procthor.generation.room_specs import RoomSpec,RoomSpecSampler,LeafRoom,MetaRoom
 from typing import List, Optional, Union
-
+from PyQt6.QtWidgets import QCheckBox
 
 pt_db = DEFAULT_PROCTHOR_DATABASE
 
@@ -215,6 +215,12 @@ class HouseDesigner(QWidget):
         self.prev_button.clicked.connect(self.prev_page)
         self.next_button.clicked.connect(self.next_page)
         self.confirm_button.clicked.connect(self.confirm_selection)
+
+        # ✅ add “Randomize Remaining” checkbox
+        self.randomize_checkbox = QCheckBox("Randomize Remaining")
+        self.randomize_checkbox.setChecked(False)
+        self.button_layout.addWidget(self.randomize_checkbox)
+
 
         self.button_layout.addWidget(self.prev_button)
         self.button_layout.addWidget(self.next_button)
@@ -1022,7 +1028,8 @@ class HouseDesigner(QWidget):
         house_settings = {
             "structure": self.extract_structure(),
             "floor_wall_objects": self.extract_floor_wall_objects(),
-            "small_objects": self.extract_small_objects()
+            "small_objects": self.extract_small_objects(),
+            "randomize_rest": self.randomize_checkbox.isChecked()
         }
         
         json_output = json.dumps(house_settings, indent=4, ensure_ascii=False)

@@ -332,6 +332,7 @@ def add_windows(
     ceiling_height: float,
     pt_db: ProcTHORDatabase,
     user_wall_objs: Optional[List[dict]] = None,
+    randomize_rest: bool = True,
 ) -> None:
     """Add windows to the house."""
     window_boundary_strings = get_boundary_strings(
@@ -372,9 +373,18 @@ def add_windows(
         # 如果 user_wall_objs 存在，则筛选出当前房间的条目；否则得到空列表
         user_wall_objs_per_room = [w for w in user_wall_objs if w.get("room") == str(room_id)] if user_wall_objs is not None else []
         # 如果有用户输入的条目，则计算窗口数量，否则使用随机采样
-        max_windows_in_room = (sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Window")
-                            if user_wall_objs_per_room
-                            else random.choices([0, 1, 2], weights=[0.125, 0.375, 0.5], k=1)[0])
+        # max_windows_in_room = (sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Window")
+        #                     if user_wall_objs_per_room
+        #                     else random.choices([0, 1, 2], weights=[0.125, 0.375, 0.5], k=1)[0])
+
+        if user_wall_objs_per_room:
+            max_windows_in_room = sum(
+                1 for obj in user_wall_objs_per_room if obj.get("asset") == "Window"
+            )
+        elif randomize_rest:
+            max_windows_in_room = random.choices([0, 1, 2], weights=[0.125, 0.375, 0.5], k=1)[0]
+        else:
+            max_windows_in_room = 0
 
         room_lines_df = filter_room_lines_df(
             room_lines_df=room_lines_df, min_asset_size=min_window_size
@@ -766,26 +776,41 @@ def add_paintings(
     wall_object_heights_per_room,
     pt_db: ProcTHORDatabase,
     user_wall_objs: Optional[List[dict]] = None,
+    randomize_rest: bool = True,
 ) -> None:
     """Add paintings to the house."""
     paintings_df = get_assets_df(split=split, asset_type="Painting", pt_db=pt_db)
     
-    # 原随机逻辑生成各房间画作数量
-    random_max_paintings = random.choices(
-        population=PAINTINGS_PER_ROOM["population"],
-        weights=PAINTINGS_PER_ROOM["weights"],
-        k=len(rooms_lines_df_map)
-    )
-    
+    if randomize_rest:
+        random_max_paintings = random.choices(
+            population=PAINTINGS_PER_ROOM["population"],
+            weights=PAINTINGS_PER_ROOM["weights"],
+            k=len(rooms_lines_df_map)
+        )
+    else:
+        random_max_paintings = [0] * len(rooms_lines_df_map) 
+
     min_painting_size = paintings_df["xSize"].min()
 
     for idx, (room_id, room_lines_df) in enumerate(rooms_lines_df_map.items()):
         # 如果 user_wall_objs 存在，则筛选出当前房间的条目；否则得到空列表
-        user_wall_objs_per_room = [w for w in user_wall_objs if w.get("room") == str(room_id)] if user_wall_objs is not None else []
-        # 如果有用户输入的条目，则计算窗口数量，否则使用随机采样
-        max_paintings_in_room = (sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Painting")
-                            if user_wall_objs_per_room
-                            else random_max_paintings[idx])
+        user_wall_objs_per_room = [
+            w for w in user_wall_objs if w.get("room") == str(room_id)
+        ] if user_wall_objs is not None else []
+
+        if user_wall_objs_per_room:
+            max_paintings_in_room = sum(
+                1 for obj in user_wall_objs_per_room if obj.get("asset") == "Painting"
+            )
+        elif randomize_rest:
+            max_paintings_in_room = random_max_paintings[idx]
+        else:
+            max_paintings_in_room = 0
+
+        # # 如果有用户输入的条目，则计算窗口数量，否则使用随机采样
+        # max_paintings_in_room = (sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Painting")
+        #                     if user_wall_objs_per_room
+        #                     else random_max_paintings[idx])
 
         for painting_i in range(max_paintings_in_room):
             room_lines_df = filter_room_lines_df(
@@ -922,6 +947,7 @@ def add_televisions(
     ceiling_height: float,
     pt_db: ProcTHORDatabase,
     user_wall_objs: Optional[List[dict]] = None,
+    randomize_rest: bool = True,
 ):
     """Add paintings to the house."""
     rooms_lines_df_map, wall_object_heights_per_room = setup_wall_placement(
@@ -943,13 +969,18 @@ def add_televisions(
 
     for room_id, room_lines_df in rooms_lines_df_map.items():
         user_wall_objs_per_room = [w for w in user_wall_objs if w.get("room") == str(room_id)] if user_wall_objs is not None else []
-        desired_tv_count = (
-            sum(1 for obj in user_wall_objs_per_room if obj.get("asset") == "Television")
-            if user_wall_objs_per_room
-            else (1 if room_type_map[room_id] in ROOMS_WITH_WALL_TELEVISIONS 
-                and random.random() <= ROOMS_WITH_WALL_TELEVISIONS[room_type_map[room_id]]["p"]
-                else None)
-        )
+
+        if user_wall_objs_per_room:
+            desired_tv_count = sum(
+                1 for obj in user_wall_objs_per_room if obj.get("asset") == "Television"
+            )
+        elif randomize_rest and room_type_map[room_id] in ROOMS_WITH_WALL_TELEVISIONS:
+            desired_tv_count = (
+                1 if random.random() <= ROOMS_WITH_WALL_TELEVISIONS[room_type_map[room_id]]["p"] else None
+            )
+        else:
+            desired_tv_count = None
+
         if desired_tv_count is None:
             continue
 
@@ -1068,6 +1099,7 @@ def default_add_wall_objects(
     room_type_map: Dict[int, str],
     ceiling_height: float,
     user_wall_objs: Optional[List[dict]] = None,
+    randomize_rest: bool = True,
 ) -> None:
     """Add wall objects to the house."""
     wall_map = {w["id"]: w for w in partial_house.walls}
@@ -1081,6 +1113,7 @@ def default_add_wall_objects(
         ceiling_height=ceiling_height,
         pt_db=pt_db,
         user_wall_objs=user_wall_objs,  # 传入用户设置
+        randomize_rest = randomize_rest,
     )
     tvs_per_room, rooms_lines_df_map, wall_object_heights_per_room = add_televisions(
         partial_house=partial_house,
@@ -1092,6 +1125,7 @@ def default_add_wall_objects(
         ceiling_height=ceiling_height,
         pt_db=pt_db,
         user_wall_objs=user_wall_objs,  # 传入用户设置
+        randomize_rest = randomize_rest,
     )
 
     add_paintings(
@@ -1105,4 +1139,5 @@ def default_add_wall_objects(
         wall_object_heights_per_room=wall_object_heights_per_room,
         pt_db=pt_db,
         user_wall_objs=user_wall_objs,  # 传入用户设置
+        randomize_rest = randomize_rest,
     )

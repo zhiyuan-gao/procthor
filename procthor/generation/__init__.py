@@ -262,7 +262,7 @@ class HouseGenerator:
             
             if self.user_defined_params:
                 user_floor_objs = self.user_defined_params.get('floor_wall_objects', None).get('floor_objects', None)
-
+                randomize_rest = self.user_defined_params.get('randomize_rest', False)
                 sampled_room_types = [room.room_type for room in partial_house.rooms.values()]
                 room_type_counts = Counter(sampled_room_types)
 
@@ -281,6 +281,7 @@ class HouseGenerator:
                         floor_obj['room'] = choice
             else:
                 user_floor_objs = None
+                randomize_rest = False
 
             with advance_and_record_partial(partial_house):
 
@@ -290,7 +291,8 @@ class HouseGenerator:
                     pt_db=self.pt_db,
                     split=self.split,
                     max_floor_objects=sampling_vars.max_floor_objects,
-                    user_floor_objs=user_floor_objs
+                    user_floor_objs=user_floor_objs,
+                    randomize_rest=randomize_rest,
                 )
                 floor_objects = [*partial_house.objects]
                 gfs.randomize_object_colors(objects=floor_objects, pt_db=self.pt_db)
@@ -310,7 +312,8 @@ class HouseGenerator:
                     boundary_groups=partial_house.house_structure.boundary_groups,
                     room_type_map=partial_house.room_spec.room_type_map,
                     ceiling_height=partial_house.house_structure.ceiling_height,
-                    user_wall_objs=user_wall_objs
+                    user_wall_objs=user_wall_objs,
+                    randomize_rest=randomize_rest
                 )
                 wall_objects = [*partial_house.objects[len(floor_objects) :]]
                 gfs.randomize_object_colors(objects=wall_objects, pt_db=self.pt_db)
@@ -350,7 +353,8 @@ class HouseGenerator:
                     pt_db=self.pt_db,
                     split=self.split,
                     rooms=partial_house.rooms,
-                    user_small_objs=user_small_objs
+                    user_small_objs=user_small_objs,
+                    randomize_rest=randomize_rest,
                 )
                 small_objects = [
                     # *partial_house.objects[len(floor_objects) + len(wall_objects) :]

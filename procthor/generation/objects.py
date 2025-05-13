@@ -1362,7 +1362,8 @@ def default_add_floor_objects(
     p_allow_house_plant_group: float = P_ALLOW_HOUSE_PLANT_GROUP,
     p_allow_tv_group: float = P_ALLOW_TV_GROUP,
     target_room_ids: Optional[List[int]] = None,
-    user_floor_objs: Optional[dict] = None
+    user_floor_objs: Optional[dict] = None,
+    randomize_rest: bool = True,
 ) -> None:
     """Add objects to each room.
 
@@ -1410,6 +1411,8 @@ def default_add_floor_objects(
 
         remaining_objects_to_sample = max_floor_objects - len(user_floor_objs_per_room)
         assert remaining_objects_to_sample >= 0, "Too many user input objects"
+        if not randomize_rest:
+            remaining_objects_to_sample = 0
 
         try_times = 0
         while user_floor_objs_per_room:

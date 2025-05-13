@@ -73,7 +73,8 @@ def default_add_small_objects(
     rooms: Dict[int, ProceduralRoom],
     max_object_types_per_room: int = 10000,
     target_receptacle_ids: Optional[List[str]] = None,
-    user_small_objs: Optional[dict] = None
+    user_small_objs: Optional[dict] = None,
+    randomize_rest: bool = True,
 ) -> None:
     """
     Adds small objects to the house by placing them on suitable receptacles 
@@ -309,22 +310,24 @@ def default_add_small_objects(
                 remaining_receptacles.append(receptacle)
 
         # process the remaining random receptacle items in the room
-        for receptacle in remaining_receptacles:
+        if randomize_rest:
+    
+            for receptacle in remaining_receptacles:
 
-            objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[receptacle["objectType"]]
-            for object_type, data in objects_in_receptacle.items():
-                room_weight = pt_db.PLACEMENT_ANNOTATIONS.loc[object_type][f"in{room_type}s"]
-                if room_weight == 0:
-                    continue
-                spawnable_objects.append(
-                    {
-                        "receptacleId": receptacle["objectId"],
-                        "receptacleType": receptacle["objectType"],
-                        "childObjectType": object_type,
-                        "childRoomWeight": room_weight,
-                        "pSpawn": data["p"],
-                    }
-                )
+                objects_in_receptacle = pt_db.OBJECTS_IN_RECEPTACLES[receptacle["objectType"]]
+                for object_type, data in objects_in_receptacle.items():
+                    room_weight = pt_db.PLACEMENT_ANNOTATIONS.loc[object_type][f"in{room_type}s"]
+                    if room_weight == 0:
+                        continue
+                    spawnable_objects.append(
+                        {
+                            "receptacleId": receptacle["objectId"],
+                            "receptacleType": receptacle["objectType"],
+                            "childObjectType": object_type,
+                            "childRoomWeight": room_weight,
+                            "pSpawn": data["p"],
+                        }
+                    )
 
         filtered_spawnable_groups = [
             group
