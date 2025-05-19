@@ -251,8 +251,8 @@ class HouseDesigner(QWidget):
         layout = QVBoxLayout()
 
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Name", "Type", "Ratio"])
-        self.tree.setColumnCount(3)
+        self.tree.setHeaderLabels(["Name", "Type", "Ratio", "Max Floor Objs"])
+        self.tree.setColumnCount(4)
 
         self.tree.setDragDropMode(QTreeWidget.DragDropMode.InternalMove)  # ✅ 允许内部拖拽
         self.tree.setDefaultDropAction(Qt.DropAction.MoveAction)  # ✅ 确保 Qt 被正确导入
@@ -260,13 +260,12 @@ class HouseDesigner(QWidget):
 
         layout.addWidget(self.tree)
 
-        # ✅ 设置列宽（Name 和 Type 变长，Ratio 变短）
-        self.tree.setColumnWidth(0, 200)  # ✅ Name 列
-        self.tree.setColumnWidth(1, 150)  # ✅ Type 列
-        self.tree.setColumnWidth(2, 70)   # ✅ Ratio 列（缩短）
+        self.tree.setColumnWidth(0, 180)
+        self.tree.setColumnWidth(1, 120)
+        self.tree.setColumnWidth(2, 60)
+        self.tree.setColumnWidth(3, 100)
 
-        # ✅ 添加 Root 结点
-        self.root = QTreeWidgetItem(self.tree, ["Root", "Root", ""])
+        self.root = QTreeWidgetItem(self.tree, ["Root", "Root", "", ""])
         self.tree.addTopLevelItem(self.root)
 
         # ✅ **默认展开 Root 结点**
@@ -274,7 +273,6 @@ class HouseDesigner(QWidget):
 
         # ✅ 启用 itemChanged 信号，以便用户可以修改房间的 Ratio
         self.tree.itemChanged.connect(self.handle_item_changed)
-
 
         # ✅ 按钮区域（添加 & 删除）
         button_layout = QHBoxLayout()
@@ -321,7 +319,6 @@ class HouseDesigner(QWidget):
 
     def add_room(self):
         selected_item = self.tree.currentItem()
-        
         if selected_item and selected_item.text(1) not in ["Root", "Group"]:
             QMessageBox.warning(self, "Error", "Please select Root or a Group to add a Room.")
             return
@@ -329,52 +326,48 @@ class HouseDesigner(QWidget):
         type_selector = QComboBox()
         type_selector.addItems(ROOM_TYPES)
 
-        # ✅ 选择房间比例（默认值 1）
         ratio_input = QSpinBox()
         ratio_input.setRange(1, 100)
         ratio_input.setValue(1)
 
-        # ✅ 弹出对话框
+        max_floor_input = QSpinBox()
+        max_floor_input.setRange(0, 7)
+        max_floor_input.setValue(7)
+
         msg_box = QMessageBox()
         msg_box.setWindowTitle("Add Room")
-        msg_box.setText("Select room type and ratio.")
-
+        msg_box.setText("Select room type, ratio and max floor-objs.")
         msg_box.layout().addWidget(type_selector)
         msg_box.layout().addWidget(ratio_input)
+        msg_box.layout().addWidget(max_floor_input)
 
         add_button = msg_box.addButton("Add", QMessageBox.ButtonRole.AcceptRole)
         cancel_button = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
-
         msg_box.exec()
 
         if msg_box.clickedButton() == cancel_button:
             return
-        
-        selected_type = type_selector.currentText()
-        ratio_value = str(ratio_input.value())  
 
-        # ✅ **分配房间 ID**
+        selected_type = type_selector.currentText()
+        ratio_value = str(ratio_input.value())
+        max_floor_value = str(max_floor_input.value())
+
         if self.available_room_ids:
-            room_id = min(self.available_room_ids)  # ✅ 复用最小的 ID
+            room_id = min(self.available_room_ids)
             self.available_room_ids.remove(room_id)
         else:
             room_id = self.next_room_id
-            self.next_room_id += 1  # ✅ 只在没有复用 ID 时递增
+            self.next_room_id += 1
 
-        # ✅ 修改 Room 显示名称
         room_name = f"Room {room_id}"
+        new_room = QTreeWidgetItem([room_name, selected_type, ratio_value, max_floor_value])
+        new_room.setFlags(new_room.flags() | Qt.ItemFlag.ItemIsEditable)
 
-        # ✅ 创建新房间节点
-        new_room = QTreeWidgetItem([room_name, selected_type, ratio_value])
-        new_room.setFlags(new_room.flags() | Qt.ItemFlag.ItemIsEditable)  # ✅ 允许修改 Ratio
-
-        # ✅ 允许 Room 直接挂在 Root
         if selected_item and selected_item.text(1) == "Group":
             selected_item.addChild(new_room)
         else:
             self.root.addChild(new_room)
 
-        # ✅ 更新第二页数据
         self.update_room_list()
         self.structureChanged.emit()
 
@@ -475,79 +468,56 @@ class HouseDesigner(QWidget):
 
 
     def add_floor_wall_object(self):
-        """添加 Floor/Wall Object，确保 object_id 在 Random 情况下也唯一"""
-
-        # ✅ 确保 room_list 先被初始化
         if not hasattr(self, "room_list") or not self.room_list:
             self.update_floor_wall_page()
 
         row = self.table_floor_wall.rowCount()
         self.table_floor_wall.insertRow(row)
 
-        print(f"Adding object to: {self.room_list}")  # ✅ 调试信息
-
-        # ✅ 选择房间（如果没有房间，则默认 Random）
-        selected_room_text = "Random"
-        if self.room_list and self.room_list != [("Random", "Random")]:
-            selected_room_text = f"{self.room_list[row % len(self.room_list)][0]}"  # ✅ 确保不越界
-
-        # 第一列：Room ID + Type 选择框
+        # 第一列：Room 选择
         if self.room_list == [("Random", "Random")]:
-            # 即使只有 "Random"，也使用 QComboBox 保持统一
             room_combo = QComboBox()
             room_combo.addItem("Random")
-            room_combo.setEnabled(False)  # 若不允许编辑，可以禁用
+            room_combo.setEnabled(False)
         else:
             room_combo = QComboBox()
-            room_options = [f"{room_id} ({room_type})" for room_id, room_type in self.room_list]
+            room_options = [f"{rid} ({rtype})" for rid, rtype in self.room_list]
             room_combo.addItems(room_options)
             room_combo.installEventFilter(self)
-            # 绑定更新信号
-            room_combo.currentIndexChanged.connect(lambda: self.update_object_options(row))
         self.table_floor_wall.setCellWidget(row, 0, room_combo)
 
-        # # 第二列：Object Type 选择框
-        # object_type_combo = QComboBox()
-        # object_type_combo.addItems(["Floor Object", "Wall Object"])
-        # object_type_combo.installEventFilter(self)
-        # object_type_combo.currentIndexChanged.connect(lambda: self.update_asset_options(row, object_type_combo))
-        # self.table_floor_wall.setCellWidget(row, 1, object_type_combo)
-
-        # 第二列：Object Type 选择
+        # 第二列：Object Type
         object_type_combo = QComboBox()
         object_type_combo.addItems(["Floor Object", "Wall Object"])
         object_type_combo.installEventFilter(self)
-        # 连接信号（先断开之前的连接，确保只连接一次）
-        try:
-            object_type_combo.currentIndexChanged.disconnect()
-        except Exception:
-            pass
-        object_type_combo.currentIndexChanged.connect(lambda: self.update_asset_options(row, object_type_combo))
         self.table_floor_wall.setCellWidget(row, 1, object_type_combo)
 
-        # ✅ 第三列：Asset Type（默认 Floor Objects）
+        # 第三列：Asset Type
         asset_combo = QComboBox()
         asset_combo.installEventFilter(self)
         self.table_floor_wall.setCellWidget(row, 2, asset_combo)
+
+        # 动态更新 asset 列
+        object_type_combo.currentIndexChanged.connect(lambda _: self.update_asset_options(row, object_type_combo))
+        room_combo.currentIndexChanged.connect(lambda _: self.update_asset_options(row, object_type_combo))
+
+        # 初始化 asset 列
         self.update_asset_options(row, object_type_combo)
 
-        # ✅ **确保 object_id 生成，即使 room 是 Random**
-        existing_objects = []
-        for r in range(row):
-            asset_widget = self.table_floor_wall.cellWidget(r, 2)
-            if asset_widget:
-                existing_objects.append(asset_widget.property("object_id"))
+        # 生成唯一 object_id
+        existing = [
+            w.property("object_id")
+            for r in range(row)
+            if (w := self.table_floor_wall.cellWidget(r, 2))
+        ]
+        default_asset = asset_combo.currentText()
+        same_type_count = sum(1 for oid in existing if oid and oid.startswith(default_asset))
+        room_text = room_combo.currentText().split(" (")[0]
+        object_id = f"{default_asset}_{same_type_count + 1}({room_text})"
+        asset_combo.setProperty("object_id", object_id)
 
-        default_asset_type = asset_combo.currentText()  # ✅ 读取当前物品类型
-        same_type_count = sum(1 for obj in existing_objects if obj and obj.startswith(default_asset_type))
-
-        # ✅ **生成唯一 object_id**
-        object_id = f"{default_asset_type}_{same_type_count + 1}({selected_room_text})"
-        asset_combo.setProperty("object_id", object_id)  # ✅ 绑定到 QComboBox
-
-        self.update_small_objs_page()  
+        self.update_small_objs_page()
         self.floorWallChanged.emit()
-        print(f"Created object: {object_id}")  # ✅ 调试信息
 
     def update_object_options(self, row):
         room_combo = self.table_floor_wall.cellWidget(row, 0)
@@ -577,20 +547,25 @@ class HouseDesigner(QWidget):
         self.update_asset_options(row, object_type_combo)
 
 
-
     def update_room_list(self):
-        """仅更新 self.room_list，不清空表格"""
         self.room_list = []
+        self.room_max_floor_obj = {}
         def extract_rooms(item):
             if item.text(1) in ["Bedroom", "Bathroom", "Kitchen", "LivingRoom"]:
-                self.room_list.append((item.text(0), item.text(1)))
+                name = item.text(0)
+                self.room_list.append((name, item.text(1)))
+                try:
+                    mf = int(item.text(3))
+                except ValueError:
+                    mf = 7
+                self.room_max_floor_obj[name] = mf
             for i in range(item.childCount()):
                 extract_rooms(item.child(i))
         extract_rooms(self.root)
         if not self.room_list:
             self.room_list = [("Random", "Random")]
-        print(f"Updated Room List: {self.room_list}")
-
+            self.room_max_floor_obj = {"Random": float("inf")}
+        print(f"Rooms: {self.room_list}, max floors: {self.room_max_floor_obj}")
 
 
 
@@ -880,13 +855,36 @@ class HouseDesigner(QWidget):
 
 
     def next_page(self):
-        """切换到下一页时，确保数据同步"""
-        if self.current_page == 1:  # ✅ 在跳转到第三页时，刷新 Small Objects 选项
+        if self.current_page == 1:
+            # 检查每个房间的 Floor Object 是否超限
+            violations = []
+            for room_name, max_allowed in self.room_max_floor_obj.items():
+                if room_name == "Random":
+                    continue
+                count = 0
+                for r in range(self.table_floor_wall.rowCount()):
+                    room_combo = self.table_floor_wall.cellWidget(r, 0)
+                    obj_type_combo = self.table_floor_wall.cellWidget(r, 1)
+                    if room_combo and obj_type_combo:
+                        rc = room_combo.currentText().split(" (")[0]
+                        if rc == room_name and obj_type_combo.currentText() == "Floor Object":
+                            count += 1
+                if count > max_allowed:
+                    violations.append(f"{room_name}: {count}/{max_allowed}")
+            if violations:
+                QMessageBox.warning(
+                    self,
+                    "Limit Exceeded",
+                    "The following rooms have exceeded the maximum number of Floor Objects: \n" + "\n".join(violations)
+                )
+                return
+            # 通过检查后再更新第三页
             self.update_small_objs_page()
 
         self.current_page = min(2, self.current_page + 1)
         self.stacked_widget.setCurrentIndex(self.current_page)
         self.update_buttons()
+
 
     def update_floor_object_options(self, row, room_combo, place_combo):
         """当用户更改房间选择时，自动更新 Floor Objects 选项，确保编号唯一"""
@@ -1025,11 +1023,13 @@ class HouseDesigner(QWidget):
 
 
     def confirm_selection(self):
+        self.update_room_list()
         house_settings = {
             "structure": self.extract_structure(),
             "floor_wall_objects": self.extract_floor_wall_objects(),
             "small_objects": self.extract_small_objects(),
-            "randomize_rest": self.randomize_checkbox.isChecked()
+            "randomize_rest": self.randomize_checkbox.isChecked(),
+            "room_max_floor_obj": self.room_max_floor_obj
         }
         
         json_output = json.dumps(house_settings, indent=4, ensure_ascii=False)
@@ -1046,7 +1046,7 @@ class HouseDesigner(QWidget):
 
 
     def on_process_finished(self):
-        print("process_house_settings 已运行完毕")
+        print("process_house_settings Completed")
 
 def process_house_settings(house_settings):
     rs = structure_to_roomspec(house_settings['structure'])

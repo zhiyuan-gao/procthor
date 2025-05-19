@@ -263,6 +263,7 @@ class HouseGenerator:
             if self.user_defined_params:
                 user_floor_objs = self.user_defined_params.get('floor_wall_objects', None).get('floor_objects', None)
                 randomize_rest = self.user_defined_params.get('randomize_rest', False)
+                max_floor_objects = self.user_defined_params.get('max_floor_objects', sampling_vars.max_floor_objects)
                 sampled_room_types = [room.room_type for room in partial_house.rooms.values()]
                 room_type_counts = Counter(sampled_room_types)
 
@@ -282,6 +283,7 @@ class HouseGenerator:
             else:
                 user_floor_objs = None
                 randomize_rest = False
+                max_floor_objects = sampling_vars.max_floor_objects
 
             with advance_and_record_partial(partial_house):
 
@@ -290,7 +292,7 @@ class HouseGenerator:
                     controller=self.controller,
                     pt_db=self.pt_db,
                     split=self.split,
-                    max_floor_objects=sampling_vars.max_floor_objects,
+                    max_floor_objects=max_floor_objects,
                     user_floor_objs=user_floor_objs,
                     randomize_rest=randomize_rest,
                 )
