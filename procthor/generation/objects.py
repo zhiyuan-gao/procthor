@@ -15,7 +15,7 @@ from typing import (
     TypedDict,
     Union,
 )
-
+import json
 import numpy as np
 import pandas as pd
 from ai2thor.controller import Controller
@@ -683,6 +683,22 @@ class ProceduralRoom:
             rotation=rotation,
             anchor_type=anchor_type,
         )
+
+        # from shapely.geometry import Polygon
+
+        # def polygons_overlap(poly1, poly2):
+        #     return Polygon(poly1).intersects(Polygon(poly2))
+
+
+        # # 调试：打印放置的 asset 相关信息
+        # print(f"[DEBUG] Room {self.room_id} placing asset {getattr(asset, 'assetId', getattr(asset, 'assetGroupName', None))}")
+        # print(f"  top_down_poly_with_margin: {top_down_poly_with_margin}")
+
+        # for existing_asset in self.assets:
+        #     print(f"  Compare with existing asset {getattr(existing_asset, 'asset_id', getattr(existing_asset, 'asset_group_name', None))}")
+        #     print(f"    existing top_down_poly_with_margin: {existing_asset.top_down_poly_with_margin}")
+        #     if polygons_overlap(existing_asset.top_down_poly_with_margin, top_down_poly_with_margin):
+        #         print(f"    [WARNING] Overlap detected with asset {getattr(existing_asset, 'asset_id', getattr(existing_asset, 'asset_group_name', None))}!")
 
         if is_chosen_asset_group(asset):
             objects = []
@@ -1397,6 +1413,12 @@ def default_add_floor_objects(
 
         if user_floor_objs:
             user_floor_objs_per_room = [obj for obj in user_floor_objs if obj.get("room") == str(room.room_id)]
+            # for obj in user_floor_objs_per_room:
+            #     area = obj.get("area")
+
+            #     obj["area"] = room.get_area(obj["position"]["x"], obj["position"]["z"])
+            # # change the order of the user input objects according to the area
+                
         else:
             user_floor_objs_per_room = []
 
@@ -1409,16 +1431,17 @@ def default_add_floor_objects(
 
         asset = None
 
-        remaining_objects_to_sample = max_floor_objects - len(user_floor_objs_per_room)
-        assert remaining_objects_to_sample >= 0, "Too many user input objects"
+        assert len(user_floor_objs_per_room) >= max_floor_objects, "Too many user input objects"
         if not randomize_rest:
             remaining_objects_to_sample = 0
+        else:
+            remaining_objects_to_sample = max_floor_objects - len(user_floor_objs_per_room)
+        
 
-        try_times = 0
-        while user_floor_objs_per_room:
-
-            cache_rectangles = try_times != 0
+        for k, floor_obj_info in enumerate(user_floor_objs_per_room):
+            cache_rectangles = k != 0 and asset is None
             if cache_rectangles:
+                # NOTE: Don't resample failed rectangles
                 room.last_rectangles.remove(rectangle)
                 rectangle = room.sample_next_rectangle(cache_rectangles=True)
             else:
@@ -1426,86 +1449,194 @@ def default_add_floor_objects(
 
             if rectangle is None:
                 print(f'no more rectangles to sample in room {room.room_id}')
-                break 
+                break
 
-            # try to place the each user input objects in this rectangle
-            for floor_obj_info in user_floor_objs_per_room:
-                find_asset = False
+            # randomly choose a object from the user input objects, no put back
+            # use a better sequence to place the object later
+            # floor_obj_info = random.choice(user_floor_objs_per_room)
+            # user_floor_objs_per_room.remove(floor_obj_info)
 
-                input_asset_type = floor_obj_info["asset"]
-                user_spawnable_assets=spawnable_assets[spawnable_assets["assetType"] == input_asset_type]
+            input_asset_type = floor_obj_info["asset"]
+            user_spawnable_assets=spawnable_assets[spawnable_assets["assetType"] == input_asset_type]
 
-                all_anchor_types = ['inCorner', 'onEdge', 'inMiddle']
-                allowed_anchor_types = [key for key in all_anchor_types if pt_db.PLACEMENT_ANNOTATIONS.loc[input_asset_type][key]]
+            all_anchor_types = ['inCorner', 'onEdge', 'inMiddle']
+            allowed_anchor_types = [key for key in all_anchor_types if pt_db.PLACEMENT_ANNOTATIONS.loc[input_asset_type][key]]
 
-                anchor_results = room.sample_anchor_location(
-                    rectangle, anchor_types=allowed_anchor_types)
+            anchor_candidates = room.sample_anchor_location(
+                rectangle, anchor_types=allowed_anchor_types)
+            
+            print("FINDING CANDIDATE FOR", input_asset_type)
+            candidate_asset_found = False
+            for candidate in anchor_candidates:
 
-                for result in anchor_results:
+                x_info, z_info, anchor_delta, anchor_type = candidate
 
-                    x_info, z_info, anchor_delta, anchor_type = result
+                asset = sample_given_type_asset(
+                    room=room,
+                    rectangle=rectangle,
+                    anchor_type=anchor_type,
+                    anchor_delta=anchor_delta,
+                    spawnable_assets=user_spawnable_assets,
+                )
 
-                    asset = sample_given_type_asset(
-                        room=room,
+                candidate_asset_found = asset is not None
+                if asset:
+                    room.sample_place_asset_in_rectangle(
+                        asset=asset,
                         rectangle=rectangle,
                         anchor_type=anchor_type,
+                        x_info=x_info,
+                        z_info=z_info,
                         anchor_delta=anchor_delta,
-                        spawnable_assets=user_spawnable_assets,
                     )
 
-                    if asset:
-                        room.sample_place_asset_in_rectangle(
-                            asset=asset,
-                            rectangle=rectangle,
-                            anchor_type=anchor_type,
-                            x_info=x_info,
-                            z_info=z_info,
-                            anchor_delta=anchor_delta,
-                        )
+                    added_asset_types = []
+                    if "assetType" in asset:
+                        added_asset_types.append(asset["assetType"])
+                    else:
+                        added_asset_types.extend([o["assetType"] for o in asset["objects"]])
 
-                        added_asset_types = []
-                        if "assetType" in asset:
-                            added_asset_types.append(asset["assetType"])
-                        else:
-                            added_asset_types.extend([o["assetType"] for o in asset["objects"]])
+                        if not asset["allowDuplicates"]:
+                            spawnable_asset_groups = spawnable_asset_groups.query(
+                                f"assetGroupName!='{asset['assetGroupName']}'"
+                            )
 
-                            if not asset["allowDuplicates"]:
-                                spawnable_asset_groups = spawnable_asset_groups.query(
-                                    f"assetGroupName!='{asset['assetGroupName']}'"
-                                )
+                    for asset_type in added_asset_types:
+                        # Remove spawned object types from `priority_asset_types` when appropriate
+                        if asset_type in priority_asset_types:
+                            priority_asset_types.remove(asset_type)
+                            print(f"^^^ REM FROM [priority_asset_types]:", asset_type)
 
-                        for asset_type in added_asset_types:
-                            # Remove spawned object types from `priority_asset_types` when appropriate
-                            if asset_type in priority_asset_types:
-                                priority_asset_types.remove(asset_type)
+                        allow_duplicates_of_asset_type = pt_db.PLACEMENT_ANNOTATIONS.loc[
+                            asset_type
+                        ]["multiplePerRoom"]
 
-                            allow_duplicates_of_asset_type = pt_db.PLACEMENT_ANNOTATIONS.loc[
-                                asset_type
-                            ]["multiplePerRoom"]
+                        if not allow_duplicates_of_asset_type:
+                            # NOTE: Remove all asset groups that have the type
+                            spawnable_asset_groups = spawnable_asset_groups[
+                                ~spawnable_asset_groups[f"has{asset_type}"]
+                            ]
 
-                            if not allow_duplicates_of_asset_type:
-                                # NOTE: Remove all asset groups that have the type
-                                spawnable_asset_groups = spawnable_asset_groups[
-                                    ~spawnable_asset_groups[f"has{asset_type}"]
-                                ]
+                            # NOTE: Remove all standalone assets that have the type
+                            spawnable_assets = spawnable_assets[
+                                spawnable_assets["assetType"] != asset_type
+                            ]
 
-                                # NOTE: Remove all standalone assets that have the type
-                                spawnable_assets = spawnable_assets[
-                                    spawnable_assets["assetType"] != asset_type
-                                ]
-                        user_floor_objs_per_room.remove(floor_obj_info)
-                        find_asset = True
-                        break
-                if find_asset:
+                    # Break out of the loop: [for candidate in anchor_candidates]
+                    #print(f"{input_asset_type}: FOUND CANDIDATE", asset)
                     break
+                else:
+                    print(f"{input_asset_type}: NO CANDIDATE FOUND")
+            
+            if not candidate_asset_found:
+                ass = floor_obj_info["asset"]
+                print(f"***************ASSET {ass} FAILED BEING PLACED")
 
-            try_times += 1
-            if try_times == 100:
-                print(f"room {room.room_id} failed to place user input objects")
-                break
-        else:
-            print(f"room {room.room_id} successfully placed user input floor objects")
+            
 
+
+
+
+
+
+
+
+        # try_times = 0
+        # while user_floor_objs_per_room:
+
+        #     cache_rectangles = try_times != 0
+        #     if cache_rectangles:
+        #         room.last_rectangles.remove(rectangle)
+        #         rectangle = room.sample_next_rectangle(cache_rectangles=True)
+        #     else:
+        #         rectangle = room.sample_next_rectangle()
+
+        #     if rectangle is None:
+        #         print(f'no more rectangles to sample in room {room.room_id}')
+        #         break 
+
+        #     # try to place the each user input objects in this rectangle
+        #     for floor_obj_info in user_floor_objs_per_room:
+        #         find_asset = False
+        #         print("floor obj", floor_obj_info)
+
+        #         input_asset_type = floor_obj_info["asset"]
+        #         user_spawnable_assets=spawnable_assets[spawnable_assets["assetType"] == input_asset_type]
+
+        #         all_anchor_types = ['inCorner', 'onEdge', 'inMiddle']
+        #         allowed_anchor_types = [key for key in all_anchor_types if pt_db.PLACEMENT_ANNOTATIONS.loc[input_asset_type][key]]
+
+        #         anchor_candidates = room.sample_anchor_location(
+        #             rectangle, anchor_types=allowed_anchor_types)
+
+        #         for candidate in anchor_candidates:
+
+        #             x_info, z_info, anchor_delta, anchor_type = candidate
+
+        #             asset = sample_given_type_asset(
+        #                 room=room,
+        #                 rectangle=rectangle,
+        #                 anchor_type=anchor_type,
+        #                 anchor_delta=anchor_delta,
+        #                 spawnable_assets=user_spawnable_assets,
+        #             )
+
+        #             if asset:
+        #                 print("- asset", asset["objects"])
+        #                 room.sample_place_asset_in_rectangle(
+        #                     asset=asset,
+        #                     rectangle=rectangle,
+        #                     anchor_type=anchor_type,
+        #                     x_info=x_info,
+        #                     z_info=z_info,
+        #                     anchor_delta=anchor_delta,
+        #                 )
+
+        #                 added_asset_types = []
+        #                 if "assetType" in asset:
+        #                     added_asset_types.append(asset["assetType"])
+        #                 else:
+        #                     added_asset_types.extend([o["assetType"] for o in asset["objects"]])
+
+        #                     if not asset["allowDuplicates"]:
+        #                         spawnable_asset_groups = spawnable_asset_groups.query(
+        #                             f"assetGroupName!='{asset['assetGroupName']}'"
+        #                         )
+
+        #                 for asset_type in added_asset_types:
+        #                     # Remove spawned object types from `priority_asset_types` when appropriate
+        #                     if asset_type in priority_asset_types:
+        #                         priority_asset_types.remove(asset_type)
+
+        #                     allow_duplicates_of_asset_type = pt_db.PLACEMENT_ANNOTATIONS.loc[
+        #                         asset_type
+        #                     ]["multiplePerRoom"]
+
+        #                     if not allow_duplicates_of_asset_type:
+        #                         # NOTE: Remove all asset groups that have the type
+        #                         spawnable_asset_groups = spawnable_asset_groups[
+        #                             ~spawnable_asset_groups[f"has{asset_type}"]
+        #                         ]
+
+        #                         # NOTE: Remove all standalone assets that have the type
+        #                         spawnable_assets = spawnable_assets[
+        #                             spawnable_assets["assetType"] != asset_type
+        #                         ]
+        #                 user_floor_objs_per_room.remove(floor_obj_info)
+        #                 find_asset = True
+        #                 break
+                # if find_asset:
+                #     break
+
+            #     try_times += 1
+            # if try_times == 100:
+            #     print(f"room {room.room_id} failed to place user input objects")
+            #     break
+
+
+
+
+        print(f"room {room.room_id} successfully placed user input floor objects")
         for i in range(remaining_objects_to_sample):
             cache_rectangles = i != 0 and asset is None
             if cache_rectangles:

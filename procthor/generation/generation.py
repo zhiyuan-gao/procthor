@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, Literal, Optional, Sequence, Set
+from typing import Dict, Literal, Optional, Sequence, Set, Any
 
 import numpy as np
 from shapely.geometry import Polygon
@@ -188,7 +188,24 @@ def default_sample_house_structure(
     room_spec: "RoomSpec",
     interior_boundary_scale: float,
     average_room_size: int = DEFAULT_AVERAGE_ROOM_SIZE,
+    user_input: Optional[Dict[str, Any]] = None 
 ) -> HouseStructure:
+    
+    # user_floor_objs = user_input.get('floor_wall_objects', None).get('floor_objects', None)
+
+        
+    # def compute_room_area(user_objs, max_capacity, factor_range=(2.5, 3.5)):
+    #     margin = 0.35
+    #     N = len(user_objs)
+    #     S = sum((obj.xSize + 2*margin) * (obj.zSize + 2*margin) for obj in user_objs)
+    #     factor = np.random.uniform(*factor_range)
+
+    #     if N == 0:
+    #         return max_capacity * 2 * factor  # a default value
+    #     return S * (max_capacity / N) * factor
+
+    # if user_input is not None:
+
     if interior_boundary is None:
         interior_boundary = sample_interior_boundary(
             num_rooms=len(room_ids),

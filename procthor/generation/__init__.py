@@ -163,6 +163,9 @@ class HouseGenerator:
                         room_ids=room_ids,
                         room_spec=room_spec,
                         interior_boundary_scale=sampling_vars.interior_boundary_scale,
+                        user_input = self.user_defined_params,
+                        average_room_size = 6
+
                     )
                     break
                 except InvalidFloorplan:
