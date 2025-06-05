@@ -1431,7 +1431,7 @@ def default_add_floor_objects(
 
         asset = None
 
-        assert len(user_floor_objs_per_room) >= max_floor_objects, "Too many user input objects"
+        assert len(user_floor_objs_per_room) <= max_floor_objects, "Too many user input objects"
         if not randomize_rest:
             remaining_objects_to_sample = 0
         else:
